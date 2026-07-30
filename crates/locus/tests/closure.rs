@@ -136,15 +136,40 @@ fn malformed() {
     let path = home.join("trace.json");
     fs::write(&path, "broken\n").expect("write");
     let trace = Role::trace();
+    let hook = Arc::new(Capture::default());
     let policy = Policy::default().generator(trace.clone(), generator::Spec::shared(&path));
-    let engine = Engine::bootstrap(Config::new(policy)).expect("bootstrap");
+    let engine = Engine::bootstrap(Config::new(policy).hook(hook.clone())).expect("bootstrap");
 
     let error = engine
         .append(&Context::empty(), Candidate::context().ensure(trace))
         .expect_err("refuse");
     assert_eq!(error.kind(), &Kind::Generator);
+    let seen = hook.take();
+    let diagnostic = match &seen[0] {
+        Observation::Diagnostic(diagnostic) => diagnostic,
+        Observation::Report(_) => panic!("expected diagnostic"),
+    };
+    assert_eq!(diagnostic.code(), "generator.failed");
     assert_eq!(fs::read_to_string(&path).expect("read"), "broken\n");
     fs::remove_dir_all(home).expect("cleanup");
+}
+
+#[test]
+fn bootstrap() {
+    let hook = Arc::new(Capture::default());
+    let policy = Policy::default().fallback(generator::Spec::new("unknown", json!({})));
+    let error = Engine::bootstrap(Config::new(policy).hook(hook.clone()))
+        .err()
+        .expect("refuse");
+
+    assert_eq!(error.kind(), &Kind::Config);
+    let seen = hook.take();
+    let diagnostic = match &seen[0] {
+        Observation::Diagnostic(diagnostic) => diagnostic,
+        Observation::Report(_) => panic!("expected diagnostic"),
+    };
+    assert_eq!(diagnostic.code(), "bootstrap.failed");
+    assert!(diagnostic.message().contains("unknown generator"));
 }
 
 #[test]

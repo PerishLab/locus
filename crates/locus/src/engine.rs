@@ -84,11 +84,22 @@ pub struct Engine {
 
 impl Engine {
     pub fn bootstrap(config: Config) -> Result<Self, Error> {
-        let fallback = generator::build(&config.policy.fallback)?;
-        let generators = generator::roles(&config.policy.generators)?;
-        let reporter = if config.policy.enabled {
-            let spec = config
-                .policy
+        let Config { policy, hook } = config;
+        let result = Self::build(policy, hook.clone());
+        if let Err(error) = &result {
+            handoff(
+                hook.as_ref(),
+                Observation::Diagnostic(Diagnostic::new("bootstrap.failed", error.to_string())),
+            );
+        }
+        result
+    }
+
+    fn build(policy: Policy, hook: Arc<dyn Hook>) -> Result<Self, Error> {
+        let fallback = generator::build(&policy.fallback)?;
+        let generators = generator::roles(&policy.generators)?;
+        let reporter = if policy.enabled {
+            let spec = policy
                 .reporter
                 .as_ref()
                 .ok_or_else(|| Error::config("enabled reporting requires a reporter"))?;
@@ -97,11 +108,11 @@ impl Engine {
             None
         };
         Ok(Self {
-            enabled: config.policy.enabled,
+            enabled: policy.enabled,
             reporter,
             fallback,
             generators,
-            hook: config.hook,
+            hook,
         })
     }
 
@@ -112,25 +123,44 @@ impl Engine {
         let mut context = context.clone();
         let mut choices = Vec::with_capacity(candidate.needs.len());
         for (role, explicit) in std::mem::take(&mut candidate.needs) {
-            let (key, origin) = if let Some(key) = explicit {
-                (key, Origin::Explicit)
-            } else if let Some(key) = context.read(&role) {
-                (key.clone(), Origin::Inherited)
-            } else {
-                let generator = self.generators.get(&role).unwrap_or(&self.fallback);
-                (
-                    generator.generate(&role).map_err(|error| {
-                        Error::generator(format!("cannot resolve role {}: {error}", role.text()))
-                    })?,
-                    Origin::Generated,
-                )
-            };
+            let (key, origin) = self.resolve(&context, &role, explicit)?;
             choices.push(Choice::new(&role, &key, origin));
             context = context.bind(role, key);
         }
-        let atom = Atom::new(now()?, &context, choices, candidate);
+        let at = match now() {
+            Ok(at) => at,
+            Err(error) => {
+                self.diagnostic("clock.failed", &error);
+                return Err(error);
+            }
+        };
+        let atom = Atom::new(at, &context, choices, candidate);
         self.report(atom);
         Ok(Accepted::new(context))
+    }
+
+    fn resolve(
+        &self,
+        context: &Context,
+        role: &Role,
+        explicit: Option<crate::Key>,
+    ) -> Result<(crate::Key, Origin), Error> {
+        if let Some(key) = explicit {
+            return Ok((key, Origin::Explicit));
+        }
+        if let Some(key) = context.read(role) {
+            return Ok((key.clone(), Origin::Inherited));
+        }
+        let generator = self.generators.get(role).unwrap_or(&self.fallback);
+        match generator.generate(role) {
+            Ok(key) => Ok((key, Origin::Generated)),
+            Err(error) => {
+                let error =
+                    Error::generator(format!("cannot resolve role {}: {error}", role.text()));
+                self.diagnostic("generator.failed", &error);
+                Err(error)
+            }
+        }
     }
 
     fn report(&self, atom: Atom) {
@@ -153,24 +183,35 @@ impl Engine {
     }
 
     fn observe(&self, observation: Observation) {
-        OBSERVING.with(|active| {
-            if active.replace(true) {
-                Adaptor.observe(&Observation::Diagnostic(Diagnostic::new(
-                    "hook.reentrant",
-                    "hook observation re-entered Locus",
-                )));
-                return;
-            }
-            let result = catch_unwind(AssertUnwindSafe(|| self.hook.observe(&observation)));
-            active.set(false);
-            if result.is_err() {
-                Adaptor.observe(&Observation::Diagnostic(Diagnostic::new(
-                    "hook.panic",
-                    "configured hook panicked",
-                )));
-            }
-        });
+        handoff(self.hook.as_ref(), observation);
     }
+
+    fn diagnostic(&self, code: &str, error: &Error) {
+        self.observe(Observation::Diagnostic(Diagnostic::new(
+            code,
+            error.to_string(),
+        )));
+    }
+}
+
+fn handoff(hook: &dyn Hook, observation: Observation) {
+    OBSERVING.with(|active| {
+        if active.replace(true) {
+            Adaptor.observe(&Observation::Diagnostic(Diagnostic::new(
+                "hook.reentrant",
+                "hook observation re-entered Locus",
+            )));
+            return;
+        }
+        let result = catch_unwind(AssertUnwindSafe(|| hook.observe(&observation)));
+        active.set(false);
+        if result.is_err() {
+            Adaptor.observe(&Observation::Diagnostic(Diagnostic::new(
+                "hook.panic",
+                "configured hook panicked",
+            )));
+        }
+    });
 }
 
 fn now() -> Result<u64, Error> {
