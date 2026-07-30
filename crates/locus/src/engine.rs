@@ -1,8 +1,9 @@
-use crate::atom::{Accepted, Atom, Candidate, Choice, Origin};
+use crate::atom::{Accepted, Atom, Candidate, Choice, Collection, Origin};
+use crate::collector::{self, Builtin};
 use crate::generator::{self, Generate};
 use crate::hook::{Adaptor, Diagnostic, Hook, Observation, Outcome, Status};
 use crate::reporter::{self, Report};
-use crate::{Context, Error, Role};
+use crate::{Context, Error, Key, Role};
 use std::cell::Cell;
 use std::collections::BTreeMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -15,6 +16,7 @@ thread_local! {
 
 #[derive(Clone, Debug)]
 pub struct Policy {
+    collectors: BTreeMap<String, Vec<collector::Spec>>,
     enabled: bool,
     reporter: Option<reporter::Spec>,
     fallback: generator::Spec,
@@ -24,6 +26,7 @@ pub struct Policy {
 impl Default for Policy {
     fn default() -> Self {
         Self {
+            collectors: BTreeMap::new(),
             enabled: false,
             reporter: None,
             fallback: generator::Spec::random(),
@@ -33,6 +36,14 @@ impl Default for Policy {
 }
 
 impl Policy {
+    pub fn collector(mut self, binding: impl Into<String>, spec: collector::Spec) -> Self {
+        self.collectors
+            .entry(binding.into())
+            .or_default()
+            .push(spec);
+        self
+    }
+
     pub fn reporter(mut self, spec: reporter::Spec) -> Self {
         self.enabled = true;
         self.reporter = Some(spec);
@@ -75,6 +86,7 @@ impl Config {
 }
 
 pub struct Engine {
+    collectors: BTreeMap<String, Vec<Builtin>>,
     enabled: bool,
     reporter: Option<(String, Box<dyn Report>)>,
     fallback: Arc<dyn Generate>,
@@ -96,6 +108,7 @@ impl Engine {
     }
 
     fn build(policy: Policy, hook: Arc<dyn Hook>) -> Result<Self, Error> {
+        let collectors = collector::bindings(&policy.collectors)?;
         let fallback = generator::build(&policy.fallback)?;
         let generators = generator::roles(&policy.generators)?;
         let reporter = if policy.enabled {
@@ -108,6 +121,7 @@ impl Engine {
             None
         };
         Ok(Self {
+            collectors,
             enabled: policy.enabled,
             reporter,
             fallback,
@@ -117,6 +131,7 @@ impl Engine {
     }
 
     pub fn append(&self, context: &Context, mut candidate: Candidate) -> Result<Accepted, Error> {
+        candidate.provenance = self.collect(&mut candidate)?;
         if candidate.payload.is_none() && candidate.needs.is_empty() {
             return Err(Error::record("candidate contains no fact"));
         }
@@ -137,6 +152,62 @@ impl Engine {
         let atom = Atom::new(at, &context, choices, candidate);
         self.report(atom);
         Ok(Accepted::new(context))
+    }
+
+    fn collect(&self, candidate: &mut Candidate) -> Result<Vec<Collection>, Error> {
+        let mut seen = BTreeMap::new();
+        let mut provenance = Vec::new();
+        for (role, binding) in std::mem::take(&mut candidate.requests) {
+            if seen.insert(role.clone(), binding.clone()).is_some() {
+                return self.refuse(format!(
+                    "role {} has more than one collector binding",
+                    role.text()
+                ));
+            }
+            if matches!(candidate.needs.get(&role), Some(Some(_))) {
+                continue;
+            }
+            if let Some((key, collection)) = self.sample(&role, &binding)? {
+                candidate.needs.insert(role.clone(), Some(key));
+                provenance.push(collection);
+            }
+        }
+        Ok(provenance)
+    }
+
+    fn sample(&self, role: &Role, binding: &str) -> Result<Option<(Key, Collection)>, Error> {
+        let chain = match self.collectors.get(binding) {
+            Some(chain) => chain,
+            None => return self.refuse(format!("unknown collector binding: {binding}")),
+        };
+        let sample = match collector::first(chain) {
+            Ok(sample) => sample,
+            Err(error) => return self.failed(error),
+        };
+        let Some(sample) = sample else {
+            return Ok(None);
+        };
+        let key = match Key::new(sample.value) {
+            Ok(key) => key,
+            Err(error) => {
+                return self.refuse(format!(
+                    "collector binding {binding} produced an invalid key: {error}"
+                ));
+            }
+        };
+        Ok(Some((
+            key,
+            Collection::new(role, binding, sample.collector, sample.selector),
+        )))
+    }
+
+    fn refuse<T>(&self, message: String) -> Result<T, Error> {
+        self.failed(Error::collector(message))
+    }
+
+    fn failed<T>(&self, error: Error) -> Result<T, Error> {
+        self.diagnostic("collector.failed", &error);
+        Err(error)
     }
 
     fn resolve(

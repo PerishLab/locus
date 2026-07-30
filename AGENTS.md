@@ -12,6 +12,10 @@ and engine diagnostic handoff.
   configured generator.
 - Only absence falls through. Invalid explicit, inherited, generated, or stored
   keys refuse.
+- Callers explicitly select Locus-owned collectors and bind one collected
+  observation to a role. Locus never discovers ambient facts on its own.
+- Collector chains advance only on absence. Invalid or failed collection
+  refuses, and one successful sample is frozen into the accepted Atom.
 - One accepted append produces one immutable Atom record. Log is the
   append-only history of those records.
 - Trace and span are semantic roles over records, not lifecycle containers.
@@ -26,10 +30,10 @@ and engine diagnostic handoff.
 
 ## Ownership
 
-Locus owns Context and Atom laws, key resolution and generator algorithms,
-reporter execution, config gates, hooks, and diagnostic handoff. Products own
-their event vocabulary, logical cycles, endpoints and credentials, retention
-choices, and consumption policy.
+Locus owns Context and Atom laws, collector and generator algorithms, reporter
+execution, config gates, hooks, and diagnostic handoff. Products own collector
+selection and binding, their event vocabulary, logical cycles, endpoints and
+credentials, retention choices, and consumption policy.
 
 ## Layout
 

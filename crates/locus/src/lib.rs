@@ -1,4 +1,5 @@
 mod atom;
+pub mod collector;
 mod context;
 mod engine;
 mod error;
@@ -6,7 +7,7 @@ pub mod generator;
 mod hook;
 pub mod reporter;
 
-pub use atom::{Accepted, Atom, Candidate, Choice, Origin, Source};
+pub use atom::{Accepted, Atom, Candidate, Choice, Collection, Origin, Source};
 pub use context::{Context, Key, Role};
 pub use engine::{Config, Engine, Policy};
 pub use error::{Error, Kind};

@@ -13,6 +13,12 @@ vertical slice.
 - `engine` — the owner of acceptance, reporting, and diagnostic execution.
 - `policy` — typed declarative control values interpreted at bootstrap.
 - `config` — policy plus the caller-visible observation hook.
+- `collector` — a Locus-owned readonly observation algorithm explicitly
+  selected and bound by the caller.
+- `collection` — provenance for one collector value frozen into an Atom.
+- `environment` — a collector selecting one exact environment variable.
+- `argv` — a collector selecting one exact argument position.
+- `process` — a collector selecting one exact process field.
 - `generator` — a Locus-owned algorithm selected when a role is absent.
 - `random` — the default generator algorithm.
 - `shared` — the shared-file generator algorithm.

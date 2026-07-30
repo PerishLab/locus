@@ -9,6 +9,11 @@ storage or query engine.
 - explicit identity wins over inherited identity and generation
 - inherited identity wins over generation
 - invalid identity refuses without fallback
+- callers explicitly bind built-in collectors; there is no ambient discovery
+- environment, argv, and process collectors require exact bounded selectors
+- collector chains fall through only on absence
+- invalid or failed collection refuses and reaches the diagnostic hook
+- one successful collection is frozen into Atom provenance
 - random generation supplies an absent role
 - shared-file generation returns one stable cross-engine key
 - derived Context shadows one role without changing the old view
@@ -25,6 +30,8 @@ storage or query engine.
 - span start, end, parent, nesting, tree, status, or duration
 - an ambient runtime context
 - caller-controlled report, flush, retry, or drain
+- arbitrary collector injection or default ambient scanning
+- whole-environment, whole-argv, or whole-process collection
 - HTTP reporting
 - log query, aggregation, attribution, or storage optimization
 - a canonical binary codec

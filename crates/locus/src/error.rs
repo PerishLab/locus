@@ -2,6 +2,7 @@ use std::fmt;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Kind {
+    Collector,
     Config,
     Context,
     Generator,
@@ -33,6 +34,10 @@ impl Error {
 
     pub(crate) fn config(message: impl Into<String>) -> Self {
         Self::new(Kind::Config, message)
+    }
+
+    pub(crate) fn collector(message: impl Into<String>) -> Self {
+        Self::new(Kind::Collector, message)
     }
 
     pub(crate) fn context(message: impl Into<String>) -> Self {

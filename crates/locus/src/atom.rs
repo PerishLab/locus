@@ -41,6 +41,41 @@ impl Choice {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct Collection {
+    role: String,
+    binding: String,
+    collector: String,
+    selector: String,
+}
+
+impl Collection {
+    pub fn role(&self) -> &str {
+        &self.role
+    }
+
+    pub fn binding(&self) -> &str {
+        &self.binding
+    }
+
+    pub fn collector(&self) -> &str {
+        &self.collector
+    }
+
+    pub fn selector(&self) -> &str {
+        &self.selector
+    }
+
+    pub(crate) fn new(role: &Role, binding: &str, collector: &str, selector: String) -> Self {
+        Self {
+            role: role.text().into(),
+            binding: binding.into(),
+            collector: collector.into(),
+            selector,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Source {
     file: String,
     line: u32,
@@ -80,6 +115,8 @@ pub struct Atom {
     at: u64,
     context: BTreeMap<String, String>,
     choices: Vec<Choice>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    collections: Vec<Collection>,
     #[serde(skip_serializing_if = "Option::is_none")]
     source: Option<Source>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -97,6 +134,10 @@ impl Atom {
 
     pub fn choices(&self) -> &[Choice] {
         &self.choices
+    }
+
+    pub fn collections(&self) -> &[Collection] {
+        &self.collections
     }
 
     pub fn source(&self) -> Option<&Source> {
@@ -117,6 +158,7 @@ impl Atom {
             at,
             context: context.snapshot(),
             choices,
+            collections: candidate.provenance,
             source: candidate.source,
             payload: candidate.payload,
         }
@@ -126,6 +168,8 @@ impl Atom {
 #[derive(Clone, Debug, Default)]
 pub struct Candidate {
     pub(crate) needs: BTreeMap<Role, Option<Key>>,
+    pub(crate) provenance: Vec<Collection>,
+    pub(crate) requests: Vec<(Role, String)>,
     pub(crate) source: Option<Source>,
     pub(crate) payload: Option<Value>,
 }
@@ -149,6 +193,11 @@ impl Candidate {
 
     pub fn explicit(mut self, role: Role, key: Key) -> Self {
         self.needs.insert(role, Some(key));
+        self
+    }
+
+    pub fn collect(mut self, role: Role, binding: impl Into<String>) -> Self {
+        self.requests.push((role, binding.into()));
         self
     }
 

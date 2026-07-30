@@ -29,6 +29,24 @@ never repaired by a lower layer.
 Trace and span are the first stable roles. They do not imply parenthood,
 nesting, start, end, status, duration, or a runtime scope.
 
+## Collection
+
+Collectors are Locus-owned readonly observation algorithms. Config names an
+ordered chain of built-ins, and a Candidate explicitly binds that chain to one
+role. Locus never scans ambient state or chooses what an observation means.
+
+Bootstrap validates collector specs but does not sample. Append evaluates one
+requested chain once. Only absence advances to the next collector; invalid
+output or execution failure refuses and hands a diagnostic to the hook.
+
+A collected value enters identity resolution as an explicit candidate.
+Existing literal explicit values therefore win without running a collector.
+Collection provenance is frozen into the Atom without duplicating its value.
+
+The first built-ins select one environment variable, one argv position after
+the executable, or one process field. Each spec carries an explicit byte bound.
+There is no whole-environment, whole-argv, or whole-process collector.
+
 ## Records
 
 One accepted append creates one logical record with a stable boundary. The

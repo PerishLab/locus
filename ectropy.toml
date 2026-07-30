@@ -6,7 +6,10 @@ paths = ["crates/*/tests/**/*.rs"]
 syntax = "test"
 
 [[grant]]
-paths = ["crates/*/tests/**/*.rs"]
+paths = [
+    "crates/*/tests/**/*.rs",
+    "crates/locus/src/collector.rs",
+]
 syntax = "environment"
 
 [limit]
