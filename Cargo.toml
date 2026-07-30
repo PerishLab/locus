@@ -1,0 +1,18 @@
+[workspace]
+resolver = "3"
+members = ["crates/locus", "crates/macro"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+repository = "https://git.perish.top/PerishLab/locus"
+
+[workspace.dependencies]
+getrandom = "0.3"
+locus-macro = { path = "crates/macro", version = "=0.1.0", registry = "perish" }
+proc-macro2 = "1"
+quote = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+syn = { version = "2", features = ["full"] }

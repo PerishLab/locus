@@ -1,0 +1,18 @@
+[package]
+name = "locus"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = ["perish"]
+description = "Readonly context and immutable observation substrate"
+readme = "../../README.md"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+getrandom = { workspace = true }
+locus-macro = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
