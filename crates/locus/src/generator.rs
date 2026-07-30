@@ -177,6 +177,19 @@ fn read(path: &Path) -> Result<Key, Fault> {
 }
 
 fn create(path: &Path, key: &Key) -> std::io::Result<()> {
+    if path.file_name().is_none() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "shared key path must name a file",
+        ));
+    }
+    let nonce = random().map_err(|error| std::io::Error::other(error.to_string()))?;
+    let staging = path.with_file_name(format!(
+        ".locus-{}-{}.tmp",
+        std::process::id(),
+        nonce.text()
+    ));
+
     let mut options = OpenOptions::new();
     options.create_new(true).write(true);
     #[cfg(unix)]
@@ -184,17 +197,27 @@ fn create(path: &Path, key: &Key) -> std::io::Result<()> {
         use std::os::unix::fs::OpenOptionsExt;
         options.mode(0o600);
     }
-    let mut file = options.open(path)?;
-    serde_json::to_writer(
-        &mut file,
-        &Record {
-            version: 1,
-            key: key.text().into(),
-        },
-    )
+    let mut record = serde_json::to_vec(&Record {
+        version: 1,
+        key: key.text().into(),
+    })
     .map_err(std::io::Error::other)?;
-    file.write_all(b"\n")?;
-    file.sync_all()
+    record.push(b'\n');
+    let mut file = options.open(&staging)?;
+    let written = file.write_all(&record).and_then(|_| file.sync_all());
+    drop(file);
+    if let Err(error) = written {
+        let _ = fs::remove_file(staging);
+        return Err(error);
+    }
+
+    match fs::hard_link(&staging, path) {
+        Ok(()) => fs::remove_file(staging),
+        Err(error) => {
+            let _ = fs::remove_file(staging);
+            Err(error)
+        }
+    }
 }
 
 pub(crate) fn roles(

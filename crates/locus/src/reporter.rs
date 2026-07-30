@@ -90,6 +90,7 @@ fn file(options: &Value) -> Result<Box<dyn Report>, Error> {
         .ok_or_else(|| Error::config("file reporter requires path"))?;
     let file = OpenOptions::new()
         .create(true)
+        .read(cfg!(windows))
         .append(true)
         .open(path)
         .map_err(|error| Error::reporter(format!("cannot open report file {path}: {error}")))?;
@@ -104,14 +105,19 @@ struct Jsonl {
 
 impl Report for Jsonl {
     fn report(&self, atom: &Atom) -> Result<(), String> {
+        let mut record =
+            serde_json::to_vec(atom).map_err(|error| format!("cannot encode Atom: {error}"))?;
+        record.push(b'\n');
         let mut file = self
             .file
             .lock()
             .map_err(|_| "file reporter lock is poisoned".to_string())?;
-        serde_json::to_writer(&mut *file, atom)
-            .map_err(|error| format!("cannot encode Atom: {error}"))?;
-        file.write_all(b"\n")
-            .and_then(|_| file.flush())
+        file.lock()
+            .map_err(|error| format!("cannot lock report file: {error}"))?;
+        let appended = file.write_all(&record).and_then(|_| file.flush());
+        let unlocked = file.unlock();
+        appended
             .map_err(|error| format!("cannot append Atom: {error}"))
+            .and_then(|_| unlocked.map_err(|error| format!("cannot unlock report file: {error}")))
     }
 }

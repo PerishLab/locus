@@ -16,10 +16,12 @@ storage or query engine.
 - one successful collection is frozen into Atom provenance
 - random generation supplies an absent role
 - shared-file generation returns one stable cross-engine key
+- concurrent shared-file generation never exposes a partial stored key
 - derived Context shadows one role without changing the old view
 - each accepted append produces one immutable Atom
 - disabled reporting remains a valid acceptance path
 - the file reporter appends one JSON record and reports its outcome to a hook
+- concurrent file reporters preserve complete JSONL record boundaries
 - reporter failure cannot roll back acceptance
 - hook failure cannot affect the engine or re-enter reporting
 - the record macro captures source without imposing a lifecycle

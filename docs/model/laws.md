@@ -29,6 +29,10 @@ never repaired by a lower layer.
 Trace and span are the first stable roles. They do not imply parenthood,
 nesting, start, end, status, duration, or a runtime scope.
 
+A shared-file generator publishes one complete stored key before the path
+becomes visible. Concurrent generators either publish that first key or read
+it; they never treat another generator's partial write as stored context.
+
 ## Collection
 
 Collectors are Locus-owned readonly observation algorithms. Config names an
@@ -53,6 +57,10 @@ One accepted append creates one logical record with a stable boundary. The
 record stream is JSONL-like: appendable, streamable, and replayable. UTF-8
 JSON, newline framing, storage layout, compression, indexing, aggregation, and
 query are not part of the logical law.
+
+The cold-start file reporter preserves one record boundary across concurrent
+engines and processes. Concurrency cannot interleave the encoded bytes of two
+accepted Atoms.
 
 ## Reporting
 

@@ -16,6 +16,10 @@ await guard(
       ]]],
     },
     { label: "cargo test", runs: [["cargo", ["test", "--locked", "--workspace"]]] },
+    {
+      label: "cargo release",
+      runs: [["cargo", ["check", "--locked", "--workspace", "--all-targets", "--release"]]],
+    },
     { label: "deno fmt", runs: [["deno", ["fmt", "--check", ".runseal"]]] },
     {
       label: "deno check",

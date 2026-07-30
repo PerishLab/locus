@@ -18,6 +18,8 @@ and engine diagnostic handoff.
   refuses, and one successful sample is frozen into the accepted Atom.
 - One accepted append produces one immutable Atom record. Log is the
   append-only history of those records.
+- Shared-file generation publishes a complete key before it becomes visible;
+  concurrent initializers converge without observing a partial stored value.
 - Trace and span are semantic roles over records, not lifecycle containers.
 - Reporting starts only after acceptance and cannot change accepted facts.
 - Callers select Locus-owned reporters through config. They cannot invoke,
@@ -27,6 +29,8 @@ and engine diagnostic handoff.
 - Engine diagnostics never re-enter the Atom stream or reporter runtime. They
   hand off to the configured hook, with a terminal stderr adaptor as default.
 - JSONL is the cold-start codec, not the permanent logical encoding.
+- File reporting preserves one encoded record boundary across concurrent
+  engines and processes.
 
 ## Ownership
 
