@@ -74,6 +74,25 @@ too coarse, split the function at the boundary exposed by feedback instead of
 tracing an inner expression or block. Function records share identity only
 through caller-managed Context, independently of normalized product surfaces.
 
+## Inspection
+
+CLI inspection is a readonly projection over a JSONL Atom stream. It groups
+records carrying `locus.trace` by that identity without inventing trace start,
+end, lifecycle, or ownership. Records without the role remain valid Log
+records and stay outside trace laws.
+
+The cold-start size law counts the input bytes of every record in one trace and
+finds a trace beyond 8 KiB. The prefix law excludes the Locus envelope, flattens
+Source and opaque payload scalar values in stable order, and compares content
+prefixes from eight through sixty-four bytes. At least five Atoms are required;
+a prefix repeated by more than eighty percent of all Atoms is a finding.
+
+JSON syntax, time, context, choices, and collection provenance do not contribute
+to prefix density. Findings carry measurements rather than attribution or
+repair advice. They cannot change input, acceptance, reporting, or diagnostics.
+Malformed JSONL refuses complete inspection instead of producing a partial
+clean result.
+
 ## Reporting
 
 Locus owns reporter implementations and execution. Config selects an owned

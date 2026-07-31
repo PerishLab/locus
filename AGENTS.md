@@ -31,6 +31,9 @@ and engine diagnostic handoff.
 - JSONL is the cold-start codec, not the permanent logical encoding.
 - File reporting preserves one encoded record boundary across concurrent
   engines and processes.
+- CLI inspection reads JSONL from stdin, projects records by `locus.trace`, and
+  emits only domain-independent structural findings. It never changes Atom
+  acceptance or attributes a finding to a cause.
 
 ## Ownership
 
@@ -67,6 +70,7 @@ credentials, retention choices, and consumption policy.
 
 - `crates/locus` is the engine and public substrate.
 - `crates/macro` is the source adapter and shares the exact release version.
+- `crates/cli` is the stdin-first structural trace inspector.
 - `docs/model/laws.md` is the prose wall for semantic laws.
 - `docs/run/verify.md` is the cold-start verification boundary.
 - `.runseal` and `.forgejo` are thin workshop operator surfaces.

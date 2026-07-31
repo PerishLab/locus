@@ -48,6 +48,19 @@ cancellation intentionally have no terminal record. It rejects `const`,
 `unsafe`, and `#[track_caller]` functions whose semantics the wrapper cannot
 preserve.
 
+The `locus` binary inspects JSONL trace structure from stdin:
+
+```sh
+locus inspect < atoms.jsonl
+```
+
+Clean input exits zero without output. Structural findings are JSONL on stdout
+with exit one. Malformed input and I/O failure use stderr and exit two. The
+initial laws flag a trace representation beyond 8 KiB and a nontrivial decoded
+content prefix covering more than eighty percent of at least five Atoms.
+Inspection never changes acceptance, reporting, or the input stream, and it
+does not attribute a finding to a product or cause.
+
 Canonical source: [PerishLab/locus](https://git.perish.top/PerishLab/locus).
 
 The cold-start contract is documented in

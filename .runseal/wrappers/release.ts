@@ -3,7 +3,7 @@ import { bin } from "@perish/sealkit/cmd";
 import { io } from "@perish/sealkit/io";
 
 const INDEX = "https://git.perish.top/api/packages/PerishLab/cargo";
-const CRATES = ["locus-macro", "locus"];
+const CRATES = ["locus-macro", "locus", "locus-cli"];
 
 const args = cli.parse(Deno.args, { boolean: ["help", "h"] });
 if (flags(args).help()) {

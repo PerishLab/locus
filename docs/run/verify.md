@@ -30,6 +30,11 @@ storage or query engine.
 - a missing downstream observation view performs no append or identity work
 - unsupported `const`, `unsafe`, and `#[track_caller]` semantics are rejected
 - function declarations are the minimum automatic observation boundary
+- stdin JSONL inspection groups only by `locus.trace` without a lifecycle
+- a trace representation beyond 8 KiB produces one size finding
+- a decoded content prefix above eighty percent produces one prefix finding
+- JSON syntax and the Locus envelope do not create prefix findings
+- inspection findings exit one; malformed input exits two without partial clean
 - format, clippy, tests, Plumb, and Ectropy are green
 
 ## Must not require
@@ -42,6 +47,7 @@ storage or query engine.
 - whole-environment, whole-argv, or whole-process collection
 - HTTP reporting
 - log query, aggregation, attribution, or storage optimization
+- inspection config, product vocabulary, cause inference, or repair advice
 - a canonical binary codec
 - OpenTelemetry compatibility or dependency
 
