@@ -25,11 +25,17 @@ storage or query engine.
 - reporter failure cannot roll back acceptance
 - hook failure cannot affect the engine or re-enter reporting
 - the record macro captures source without imposing a lifecycle
+- the function macro records entry and normal return with one context
+- `Err` remains a normal return; panic and async cancellation leave only entry
+- a missing downstream observation view performs no append or identity work
+- unsupported `const`, `unsafe`, and `#[track_caller]` semantics are rejected
+- function declarations are the minimum automatic observation boundary
 - format, clippy, tests, Plumb, and Ectropy are green
 
 ## Must not require
 
 - span start, end, parent, nesting, tree, status, or duration
+- inner-block or expression-level automatic tracing
 - an ambient runtime context
 - caller-controlled report, flush, retry, or drain
 - arbitrary collector injection or default ambient scanning

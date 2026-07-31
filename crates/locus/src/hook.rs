@@ -11,7 +11,7 @@ pub enum Status {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Outcome {
-    atom: Atom,
+    atom: Box<Atom>,
     reporter: Option<String>,
     status: Status,
     error: Option<String>,
@@ -41,7 +41,7 @@ impl Outcome {
         error: Option<String>,
     ) -> Self {
         Self {
-            atom,
+            atom: Box::new(atom),
             reporter,
             status,
             error,

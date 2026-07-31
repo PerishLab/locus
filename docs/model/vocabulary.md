@@ -28,6 +28,8 @@ vertical slice.
 - `adaptor` — the default terminal diagnostic handoff.
 - `record` — the source macro and one logical append operation.
 - `source` — optional code location captured by the macro.
+- `function` — the minimum source boundary accepted by automatic tracing.
+- `edge` — a function entry or normal return source fact.
 - `outcome` — a post-reporting observation.
 - `diagnostic` — an engine abnormality handed off outside reporting.
 - `bootstrap` — freeze config and construct one engine.

@@ -24,6 +24,30 @@ let context = accepted.context();
 # Ok::<(), locus::Error>(())
 ```
 
+Function observation is an explicit downstream decision. A product-owned
+accessor supplies a readonly engine and context view; absence is a true no-op.
+
+```rust
+# use locus::{Config, Context, Engine, Policy};
+# use std::sync::OnceLock;
+# static SEAT: OnceLock<(Engine, Context)> = OnceLock::new();
+fn observation() -> Option<(&'static Engine, &'static Context)> {
+    SEAT.get().map(|(engine, context)| (engine, context))
+}
+
+#[locus::trace(with = observation())]
+fn reconcile() -> bool {
+    true
+}
+# let _ = Engine::bootstrap(Config::new(Policy::default()));
+```
+
+The macro emits `enter` and normal `return` source records with one inherited
+trace/span context. `Err` is a normal return. Panic, abort, and async
+cancellation intentionally have no terminal record. It rejects `const`,
+`unsafe`, and `#[track_caller]` functions whose semantics the wrapper cannot
+preserve.
+
 Canonical source: [PerishLab/locus](https://git.perish.top/PerishLab/locus).
 
 The cold-start contract is documented in

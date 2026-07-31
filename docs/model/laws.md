@@ -62,6 +62,18 @@ The cold-start file reporter preserves one record boundary across concurrent
 engines and processes. Concurrency cannot interleave the encoded bytes of two
 accepted Atoms.
 
+## Source
+
+Automatic source tracing attaches only to a function declaration. It records
+one enter Atom and one Atom when the function returns normally. A missing
+return remains an observable absence after panic, abort, cancellation, or
+process loss; the adapter never invents a terminal fact.
+
+The function boundary is the minimum automatic source resolution. When it is
+too coarse, split the function at the boundary exposed by feedback instead of
+tracing an inner expression or block. Function records share identity only
+through caller-managed Context, independently of normalized product surfaces.
+
 ## Reporting
 
 Locus owns reporter implementations and execution. Config selects an owned

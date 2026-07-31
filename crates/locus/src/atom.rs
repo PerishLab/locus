@@ -5,6 +5,13 @@ use std::collections::BTreeMap;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+pub enum Edge {
+    Enter,
+    Return,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Origin {
     Explicit,
     Generated,
@@ -81,6 +88,10 @@ pub struct Source {
     line: u32,
     column: u32,
     module: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    function: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    edge: Option<Edge>,
 }
 
 impl Source {
@@ -90,7 +101,21 @@ impl Source {
             line,
             column,
             module: module.into(),
+            function: None,
+            edge: None,
         }
+    }
+
+    pub fn enter(mut self, function: &str) -> Self {
+        self.function = Some(function.into());
+        self.edge = Some(Edge::Enter);
+        self
+    }
+
+    pub fn returned(mut self, function: &str) -> Self {
+        self.function = Some(function.into());
+        self.edge = Some(Edge::Return);
+        self
     }
 
     pub fn file(&self) -> &str {
@@ -107,6 +132,14 @@ impl Source {
 
     pub fn module(&self) -> &str {
         &self.module
+    }
+
+    pub fn function(&self) -> Option<&str> {
+        self.function.as_deref()
+    }
+
+    pub fn edge(&self) -> Option<&Edge> {
+        self.edge.as_ref()
     }
 }
 

@@ -39,6 +39,30 @@ execution, config gates, hooks, and diagnostic handoff. Products own collector
 selection and binding, their event vocabulary, logical cycles, endpoints and
 credentials, retention choices, and consumption policy.
 
+## Feedback
+
+- Let real feedback expose each product's core path. Add the smallest
+  owner-side observation, exercise the same path, consume its records, remove
+  the sharpest supported friction, and repeat until evidence goes flat or an
+  ownership decision appears.
+- Place source tracing only at function declarations through a function-level
+  macro. A function is the minimum observation boundary, not a Locus domain
+  abstraction. If it is too coarse, split the function at the semantic boundary
+  exposed by feedback instead of tracing an inner block; that boundary is a
+  structure fact dynamic evidence found beyond Ectropy's static KISS laws.
+  Keep function records orthogonal to normalized CLI, agent, service, or other
+  product surfaces and join them only through context.
+- Preserve atomic facts. Derive duration, nesting, cycles, overlap,
+  aggregation, and attribution downstream rather than encoding them at the
+  source.
+- Treat repeated uncovered mechanisms as public-library candidates, never
+  automatic extractions. Promote one only when it repeats across products and
+  product names can be removed without changing ownership, refusal, failure,
+  or context laws.
+- Let an extracted library carry its own observation points so better evidence
+  returns to every product. Optimize implementation reuse and agent context as
+  one feedback economy without moving product vocabulary into the substrate.
+
 ## Layout
 
 - `crates/locus` is the engine and public substrate.
