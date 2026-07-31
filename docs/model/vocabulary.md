@@ -33,3 +33,9 @@ vertical slice.
 - `outcome` — a post-reporting observation.
 - `diagnostic` — an engine abnormality handed off outside reporting.
 - `bootstrap` — freeze config and construct one engine.
+- `mapping` — a Locus-owned projection from immutable records to one comparable
+  grouped measure.
+- `threshold` — a declared comparison boundary over one mapping result.
+- `analyzer` — a product-owned identity composing one mapping and threshold.
+- `finding` — one measurement that crossed its declared threshold.
+- `coverage` — the complete analyzer identities evaluated by one inspection.

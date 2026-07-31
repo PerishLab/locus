@@ -31,15 +31,17 @@ and engine diagnostic handoff.
 - JSONL is the cold-start codec, not the permanent logical encoding.
 - File reporting preserves one encoded record boundary across concurrent
   engines and processes.
-- CLI inspection reads JSONL from stdin, projects records by `locus.trace`, and
-  emits only domain-independent structural findings. It never changes Atom
-  acceptance or attributes a finding to a cause.
+- CLI inspection reads one root `locus.toml`, consumes JSONL from stdin, and
+  composes Locus-owned mappings with product-declared thresholds. It emits only
+  domain-independent structural findings and an explicit coverage summary. It
+  never changes Atom acceptance or attributes a finding to a cause.
 
 ## Ownership
 
 Locus owns Context and Atom laws, collector and generator algorithms, reporter
-execution, config gates, hooks, and diagnostic handoff. Products own collector
-selection and binding, their event vocabulary, logical cycles, endpoints and
+execution, config gates, hooks, diagnostic handoff, inspect mappings, and
+threshold mechanics. Products own collector selection and binding, their event
+vocabulary, logical cycles, analyzer identities and thresholds, endpoints and
 credentials, retention choices, and consumption policy.
 
 ## Feedback
@@ -48,6 +50,10 @@ credentials, retention choices, and consumption policy.
   owner-side observation, exercise the same path, consume its records, remove
   the sharpest supported friction, and repeat until evidence goes flat or an
   ownership decision appears.
+- Treat inspection as progressive sieving. Use the coarsest mapping and
+  threshold that still catches an unambiguous excess; clear those findings
+  before tightening the sieve. Smaller excess can exist without being the next
+  economical target.
 - Place source tracing only at function declarations through a function-level
   macro. A function is the minimum observation boundary, not a Locus domain
   abstraction. If it is too coarse, split the function at the semantic boundary

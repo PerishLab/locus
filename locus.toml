@@ -1,0 +1,11 @@
+version = 1
+
+[[analyzer]]
+id = "trace.size"
+mapping = { kind = "representation-bytes", group = "locus.trace" }
+threshold = { above = 8192 }
+
+[[analyzer]]
+id = "trace.prefix"
+mapping = { kind = "dominant-content-prefix-percent", group = "locus.trace" }
+threshold = { above = 80 }

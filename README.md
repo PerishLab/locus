@@ -48,18 +48,35 @@ cancellation intentionally have no terminal record. It rejects `const`,
 `unsafe`, and `#[track_caller]` functions whose semantics the wrapper cannot
 preserve.
 
-The `locus` binary inspects JSONL trace structure from stdin:
+The `locus` binary reads analyzer declarations from one product root and
+inspects JSONL Atom structure from stdin:
 
 ```sh
-locus inspect < atoms.jsonl
+locus inspect . < atoms.jsonl
 ```
 
-Clean input exits zero without output. Structural findings are JSONL on stdout
-with exit one. Malformed input and I/O failure use stderr and exit two. The
-initial laws flag a trace representation beyond 8 KiB and a nontrivial decoded
-content prefix covering more than eighty percent of at least five Atoms.
-Inspection never changes acceptance, reporting, or the input stream, and it
-does not attribute a finding to a product or cause.
+The root carries `locus.toml`; it declares analyzer identities by composing
+Locus-owned mappings with thresholds:
+
+```toml
+version = 1
+
+[[analyzer]]
+id = "trace.size"
+mapping = { kind = "representation-bytes", group = "locus.trace" }
+threshold = { above = 8192 }
+
+[[analyzer]]
+id = "trace.prefix"
+mapping = { kind = "dominant-content-prefix-percent", group = "locus.trace" }
+threshold = { above = 80 }
+```
+
+Inspection emits `locus.inspect/v1` JSONL. Findings precede one final summary
+that names complete analyzer coverage, including empty coverage. Clean input
+exits zero, findings exit one, and malformed declaration, input, or I/O exits
+two without a partial report. Inspection never changes acceptance, reporting,
+or the input stream, and it does not attribute a finding to a product or cause.
 
 Canonical source: [PerishLab/locus](https://git.perish.top/PerishLab/locus).
 

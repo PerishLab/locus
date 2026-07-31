@@ -30,11 +30,17 @@ storage or query engine.
 - a missing downstream observation view performs no append or identity work
 - unsupported `const`, `unsafe`, and `#[track_caller]` semantics are rejected
 - function declarations are the minimum automatic observation boundary
-- stdin JSONL inspection groups only by `locus.trace` without a lifecycle
-- a trace representation beyond 8 KiB produces one size finding
-- a decoded content prefix above eighty percent produces one prefix finding
+- root `locus.toml` strictly composes mappings and thresholds before stdin read
+- representation bytes can be grouped by an explicitly declared Context role
+- dominant decoded content prefix percentage is a separate mapping
+- a trace representation beyond the declared 8 KiB threshold produces one
+  size finding
+- a decoded content prefix above the declared eighty percent threshold produces
+  one prefix finding
 - JSON syntax and the Locus envelope do not create prefix findings
-- inspection findings exit one; malformed input exits two without partial clean
+- clean, finding, and malformed inspections exit zero, one, and two
+- every complete inspection reports coverage, including zero analyzer coverage
+- malformed declaration or input refuses without a partial report
 - format, clippy, tests, Plumb, and Ectropy are green
 
 ## Must not require
@@ -47,7 +53,8 @@ storage or query engine.
 - whole-environment, whole-argv, or whole-process collection
 - HTTP reporting
 - log query, aggregation, attribution, or storage optimization
-- inspection config, product vocabulary, cause inference, or repair advice
+- arbitrary mapping injection, expression languages, automatic threshold tuning
+- inspection cause inference or repair advice
 - a canonical binary codec
 - OpenTelemetry compatibility or dependency
 

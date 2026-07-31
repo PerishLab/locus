@@ -76,22 +76,34 @@ through caller-managed Context, independently of normalized product surfaces.
 
 ## Inspection
 
-CLI inspection is a readonly projection over a JSONL Atom stream. It groups
-records carrying `locus.trace` by that identity without inventing trace start,
-end, lifecycle, or ownership. Records without the role remain valid Log
-records and stay outside trace laws.
+CLI inspection is a readonly projection over a JSONL Atom stream. A product
+root declares analyzer identities in `locus.toml`; the CLI reads exactly that
+root file before consuming stdin. This declaration is separate from the engine
+runtime config cascade.
 
-The cold-start size law counts the input bytes of every record in one trace and
-finds a trace beyond 8 KiB. The prefix law excludes the Locus envelope, flattens
-Source and opaque payload scalar values in stable order, and compares content
-prefixes from eight through sixty-four bytes. At least five Atoms are required;
-a prefix repeated by more than eighty percent of all Atoms is a finding.
+An analyzer composes one Locus-owned mapping with one threshold. A mapping
+projects immutable records into a comparable measure grouped by one Context
+role. A threshold only decides when that measure is above its declared limit.
+Analyzer identity and threshold belong to the declaring product. Locus owns the
+finite mapping catalog and threshold mechanics.
 
-JSON syntax, time, context, choices, and collection provenance do not contribute
-to prefix density. Findings carry measurements rather than attribution or
-repair advice. They cannot change input, acceptance, reporting, or diagnostics.
-Malformed JSONL refuses complete inspection instead of producing a partial
-clean result.
+The first mapping sums encoded record bytes per group. The second excludes the
+Locus envelope, flattens Source and opaque payload scalar values in stable
+order, and measures the dominant content prefix from eight through sixty-four
+bytes after at least five Atoms. JSON syntax, time, context, choices, and
+collection provenance do not contribute to prefix density.
+
+The root declaration instantiates those mappings for `locus.trace` at 8 KiB
+and eighty percent. Those values are coarse cold-start sieve sizes, not
+universal definitions of pain. Tightening thresholds or adding a mapping earns
+its place only after coarser findings cease to be the economical target.
+
+Every complete inspection emits a final summary naming analyzer coverage,
+record count, and finding count. Empty declarations therefore report zero
+coverage instead of implying clean analysis. Findings carry measurements
+rather than attribution or repair advice. Unknown declaration fields, mapping
+kinds, malformed JSONL, and I/O failure refuse complete inspection instead of
+producing a partial report.
 
 ## Reporting
 
