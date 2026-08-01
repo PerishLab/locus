@@ -93,13 +93,25 @@ impl From<Shape> for Mapping {
 }
 
 fn validate(identity: &str) -> Result<(), String> {
-    let valid = !identity.is_empty()
-        && identity.len() <= 128
-        && !identity.chars().any(char::is_control)
-        && !identity.chars().any(char::is_whitespace);
-    if valid {
-        Ok(())
+    enum Fault {
+        Empty,
+        Long,
+        Control,
+        Whitespace,
+    }
+    let fault = if identity.is_empty() {
+        Some(Fault::Empty)
+    } else if identity.len() > 128 {
+        Some(Fault::Long)
+    } else if identity.chars().any(char::is_control) {
+        Some(Fault::Control)
+    } else if identity.chars().any(char::is_whitespace) {
+        Some(Fault::Whitespace)
     } else {
-        Err("analyzer identity must contain 1..=128 non-whitespace bytes".into())
+        None
+    };
+    match fault {
+        None => Ok(()),
+        Some(_) => Err("analyzer identity must contain 1..=128 non-whitespace bytes".into()),
     }
 }

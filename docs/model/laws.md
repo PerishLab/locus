@@ -6,6 +6,11 @@ Locus accepts candidate facts and emits immutable Atom records. Acceptance
 means the record became a fact. It does not claim persistence or delivery.
 Reporter outcomes are separate observations and cannot roll acceptance back.
 
+Observation is semantically transparent to the observed product. Context,
+acceptance, reporting, hooks, diagnostics, and query have no authority over its
+business state, result, exit status, or control flow. Temporary source adapters
+may expose observation syntax, but removing them removes evidence only.
+
 ## Context
 
 Context is a readonly role-to-key view. Derivation creates another view. A new
@@ -55,12 +60,12 @@ There is no whole-environment, whole-argv, or whole-process collector.
 
 One accepted append creates one logical record with a stable boundary. The
 record stream is JSONL-like: appendable, streamable, and replayable. UTF-8
-JSON, newline framing, storage layout, compression, indexing, aggregation, and
-query are not part of the logical law.
+JSON, newline framing, storage layout, compression, indexing, and aggregation
+are not part of the logical law.
 
 The cold-start file reporter preserves one record boundary across concurrent
 engines and processes. Concurrency cannot interleave the encoded bytes of two
-accepted Atoms.
+accepted Atoms. On Unix, a newly created report file is private to its owner.
 
 ## Source
 
@@ -73,6 +78,26 @@ The function boundary is the minimum automatic source resolution. When it is
 too coarse, split the function at the boundary exposed by feedback instead of
 tracing an inner expression or block. Function records share identity only
 through caller-managed Context, independently of normalized product surfaces.
+
+The function adapter ignores entry and return observation failures and returns
+the wrapped function's result unchanged. Product code may use explicit record
+APIs for observation work, but business delivery never branches on their
+outcome.
+
+## Query
+
+CLI query is a readonly projection over a complete JSONL Atom stream. It
+selects one exact validated Context role and optionally one exact validated
+key. It requires no product root or declaration.
+
+Without a key, query emits every distinct key bound to the role, sorted by key,
+with its record count. With a key, query emits each matching logical Atom in
+input order. Every complete query ends with a `locus.query/v1` summary naming
+the selector, total records, matched records, and distinct identity coverage.
+
+Malformed input or I/O failure refuses without partial query output. Empty and
+unmatched input remain complete successful queries. Query does not infer
+liveness, ownership, parenthood, lifecycle, causality, attribution, or repair.
 
 ## Inspection
 

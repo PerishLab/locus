@@ -5,7 +5,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 publish = ["perish"]
-description = "Structural inspection for Locus trace streams"
+description = "Readonly query and structural inspection for Locus Atom streams"
 readme = "../../README.md"
 
 [[bin]]

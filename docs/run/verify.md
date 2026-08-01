@@ -1,8 +1,8 @@
 # Cold-start verification
 
 The first closed loop proves Context derivation, identity selection, one Atom
-record, reporting ownership, and diagnostic isolation without defining a
-storage or query engine.
+record, reporting ownership, diagnostic isolation, and exact readonly query
+without defining a storage engine or expression language.
 
 ## Must pass
 
@@ -22,6 +22,7 @@ storage or query engine.
 - disabled reporting remains a valid acceptance path
 - the file reporter appends one JSON record and reports its outcome to a hook
 - concurrent file reporters preserve complete JSONL record boundaries
+- a newly created Unix report file is private to its owner
 - reporter failure cannot roll back acceptance
 - hook failure cannot affect the engine or re-enter reporting
 - the record macro captures source without imposing a lifecycle
@@ -41,6 +42,12 @@ storage or query engine.
 - clean, finding, and malformed inspections exit zero, one, and two
 - every complete inspection reports coverage, including zero analyzer coverage
 - malformed declaration or input refuses without a partial report
+- role query without a key enumerates sorted identities and record counts
+- role query with a key replays matching logical Atoms in input order
+- every complete query reports total, matched, and identity coverage
+- empty and unmatched query input succeeds with explicit zero coverage
+- malformed query input refuses without partial output
+- query never requires a product root or analyzer declaration
 - format, clippy, tests, Plumb, and Ectropy are green
 
 ## Must not require
@@ -52,7 +59,8 @@ storage or query engine.
 - arbitrary collector injection or default ambient scanning
 - whole-environment, whole-argv, or whole-process collection
 - HTTP reporting
-- log query, aggregation, attribution, or storage optimization
+- persistent query storage, indexing, arbitrary expressions, or aggregation
+- query inference of liveness, ownership, lifecycle, causality, or repair
 - arbitrary mapping injection, expression languages, automatic threshold tuning
 - inspection cause inference or repair advice
 - a canonical binary codec

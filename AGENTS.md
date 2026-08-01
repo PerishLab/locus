@@ -6,6 +6,9 @@ and engine diagnostic handoff.
 
 ## Closure
 
+- Observation is semantically transparent to the observed product. Removing
+  Locus may remove evidence, but never business capability, state, output,
+  exit status, or control flow.
 - Context is an immutable view. A derived view may shadow one role while every
   prior view keeps its meaning.
 - A requested role resolves in this order: explicit key, inherited context key,
@@ -35,21 +38,26 @@ and engine diagnostic handoff.
   composes Locus-owned mappings with product-declared thresholds. It emits only
   domain-independent structural findings and an explicit coverage summary. It
   never changes Atom acceptance or attributes a finding to a cause.
+- CLI query consumes JSONL from stdin and selects one exact role with an
+  optional exact key. It enumerates identities or replays matching logical
+  Atoms, then reports complete coverage without inferring lifecycle, ownership,
+  causality, or liveness.
 
 ## Ownership
 
 Locus owns Context and Atom laws, collector and generator algorithms, reporter
-execution, config gates, hooks, diagnostic handoff, inspect mappings, and
-threshold mechanics. Products own collector selection and binding, their event
-vocabulary, logical cycles, analyzer identities and thresholds, endpoints and
-credentials, retention choices, and consumption policy.
+execution, config gates, hooks, diagnostic handoff, inspect mappings, query
+selection, and threshold mechanics. Products own collector selection and
+binding, their event vocabulary, logical cycles, analyzer identities and
+thresholds, endpoints and credentials, retention choices, and consumption
+policy.
 
 ## Feedback
 
-- Let real feedback expose each product's core path. Add the smallest
-  owner-side observation, exercise the same path, consume its records, remove
-  the sharpest supported friction, and repeat until evidence goes flat or an
-  ownership decision appears.
+- Let real feedback expose each product's core path. Add the smallest isolated,
+  removable observation adapter, exercise the same path, consume its records,
+  remove the sharpest supported friction, and repeat until evidence goes flat
+  or an ownership decision appears.
 - Treat inspection as progressive sieving. Use the coarsest mapping and
   threshold that still catches an unambiguous excess; clear those findings
   before tightening the sieve. Smaller excess can exist without being the next
@@ -76,7 +84,8 @@ credentials, retention choices, and consumption policy.
 
 - `crates/locus` is the engine and public substrate.
 - `crates/macro` is the source adapter and shares the exact release version.
-- `crates/cli` is the stdin-first structural trace inspector.
+- `crates/cli` is the stdin-first structural inspector and exact Atom query.
+- `skills/locus` carries the temporary transparent-instrumentation convention.
 - `docs/model/laws.md` is the prose wall for semantic laws.
 - `docs/run/verify.md` is the cold-start verification boundary.
 - `.runseal` and `.forgejo` are thin workshop operator surfaces.

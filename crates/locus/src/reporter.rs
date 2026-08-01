@@ -88,10 +88,14 @@ fn file(options: &Value) -> Result<Box<dyn Report>, Error> {
         .and_then(Value::as_str)
         .filter(|value| !value.is_empty())
         .ok_or_else(|| Error::config("file reporter requires path"))?;
-    let file = OpenOptions::new()
-        .create(true)
-        .read(cfg!(windows))
-        .append(true)
+    let mut options = OpenOptions::new();
+    options.create(true).read(cfg!(windows)).append(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let file = options
         .open(path)
         .map_err(|error| Error::reporter(format!("cannot open report file {path}: {error}")))?;
     Ok(Box::new(Jsonl {

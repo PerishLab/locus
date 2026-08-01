@@ -25,6 +25,7 @@ roots = [
     "crates/*/src",
     "crates/*/tests",
     "docs",
+    "skills/*",
 ]
 
 [scan]
@@ -32,6 +33,7 @@ exclude = ["**/target/**"]
 include = [
     "crates/**/*.rs",
     "docs/**/*.md",
+    "skills/**/*.md",
 ]
 
 [word]

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Locus"
+  short_description: "Build and audit transparent Locus observations"
+  default_prompt: "Use $locus to add or inspect transparent trace and span observations without coupling them to business behavior."

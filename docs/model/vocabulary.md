@@ -39,3 +39,7 @@ vertical slice.
 - `analyzer` — a product-owned identity composing one mapping and threshold.
 - `finding` — one measurement that crossed its declared threshold.
 - `coverage` — the complete analyzer identities evaluated by one inspection.
+- `query` — one readonly exact role selector with an optional exact key.
+- `identity` — one distinct key observed under a queried role.
+- `replay` — matching logical Atoms emitted in their input order.
+- `summary` — the final record proving one query consumed its complete input.

@@ -1,6 +1,8 @@
 # locus
 
-Readonly context and immutable observation substrate.
+Readonly context and immutable observation substrate. Observation is
+semantically transparent: removing Locus removes evidence, not business
+capability or behavior.
 
 Locus accepts one candidate record, resolves requested semantic roles, returns
 a new immutable context view, and independently drives configured reporting.
@@ -55,6 +57,18 @@ inspects JSONL Atom structure from stdin:
 locus inspect . < atoms.jsonl
 ```
 
+It also queries one exact Context role without a product declaration. Omitting
+the key enumerates identities; supplying the key replays matching logical
+Atoms in input order:
+
+```sh
+locus query locus.trace < atoms.jsonl
+locus query locus.trace TRACE_KEY < atoms.jsonl
+```
+
+Query output uses `locus.query/v1` JSONL and ends with a complete summary. It
+does not infer liveness, ownership, lifecycle, parenthood, or cause.
+
 The root carries `locus.toml`; it declares analyzer identities by composing
 Locus-owned mappings with thresholds:
 
@@ -77,6 +91,9 @@ that names complete analyzer coverage, including empty coverage. Clean input
 exits zero, findings exit one, and malformed declaration, input, or I/O exits
 two without a partial report. Inspection never changes acceptance, reporting,
 or the input stream, and it does not attribute a finding to a product or cause.
+
+The file reporter creates new report files with private owner-only permissions
+on Unix. Operators still own the explicit report path and retention policy.
 
 Canonical source: [PerishLab/locus](https://git.perish.top/PerishLab/locus).
 
