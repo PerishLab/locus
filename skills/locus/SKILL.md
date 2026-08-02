@@ -24,23 +24,113 @@ products' business delivery.
 - Keep observation failure visible to the audit operator and isolated from the
   observed command's result.
 
-## Add a temporary product adapter
+## Cold-start a product adapter
+
+One closed loop costs about fifty deletable lines inside one crate. Do not
+design a product-specific shape; the steps below already survived a second
+product's own guard.
 
 1. Discover the product's repository instructions and normal verification.
-2. Create or reuse one isolated observation module and one readonly process
-   seat. Do not expose Locus types through business APIs or state models.
-3. Gate bootstrap before collection, generation, or reporter setup. Default the
-   gate to muted and let an external operator choose the report endpoint.
-4. Select exact bounded Locus-owned collectors. Never scan the whole
-   environment, argv, process, or filesystem.
-5. Attach source tracing only to function declarations through
-   `#[locus::trace(with = ...)]`. Split a function when the declaration is too
-   coarse; do not trace inner expressions or blocks.
-6. Ignore observation outcomes on the business path. Test enabled and disabled
-   execution for equivalent business state, output, and exit status.
-7. Keep the adapter concentrated and removable. Treat source annotations and
-   bootstrap code as temporary syntax intrusion until a simpler external
-   instrumentation delivery exists.
+2. Add the dependency to the crate that holds both the seat and the traced
+   declarations. The source adapter arrives with it.
+
+```sh
+cargo add --package PRODUCT locus@0.2 --registry perish
+```
+
+3. Create one isolated module carrying the seat, the gate, and the policy. Split
+   the seat into a library crate only when traced declarations live there. Never
+   expose Locus types through business APIs or state models.
+
+```rust
+use locus::{Candidate, Config, Context, Engine, Policy, Role, collector, reporter};
+use plumb::config::Cascade;
+use std::path::PathBuf;
+use std::sync::OnceLock;
+
+static SEAT: OnceLock<(Engine, Context)> = OnceLock::new();
+
+#[derive(Debug, Default, PartialEq, Cascade)]
+struct Settings {
+    report: PathBuf,
+}
+
+pub(crate) fn start() {
+    if let Some(seat) = load() {
+        let _ = SEAT.set(seat);
+    }
+}
+
+pub(crate) fn view() -> Option<(&'static Engine, &'static Context)> {
+    SEAT.get().map(|(engine, context)| (engine, context))
+}
+
+fn load() -> Option<(Engine, Context)> {
+    let seen = <Settings as Cascade>::env("PRODUCT_LOCUS").ok()?;
+    let settings = Settings::default().merge(seen);
+    if settings.report.as_os_str().is_empty() {
+        return None;
+    }
+    build(settings).ok()
+}
+
+fn build(settings: Settings) -> Result<(Engine, Context), locus::Error> {
+    let trace = Role::trace();
+    let policy = Policy::default()
+        .collector(
+            "agent.session",
+            collector::Spec::environment("CODEX_THREAD_ID", 512),
+        )
+        .collector(
+            "agent.session",
+            collector::Spec::environment("CLAUDE_CODE_SESSION_ID", 512),
+        )
+        .reporter(reporter::Spec::file(settings.report));
+    let engine = Engine::bootstrap(Config::new(policy))?;
+    let candidate = Candidate::context()
+        .collect(trace.clone(), "agent.session")
+        .ensure(trace);
+    let context = engine.append(&Context::empty(), candidate)?.context();
+    Ok((engine, context))
+}
+```
+
+Read the gate through the Plumb cascade. A guarded product refuses raw
+environment syntax outside its granted paths, so a hand-rolled read is a finding
+rather than a shortcut.
+
+One binding carries a chain of exact bounded collectors. The chain advances only
+on absence and the default random fallback covers an unrecognized executor, so
+cold start declares no generator, no shared key, and no explicit identity. Never
+scan the whole environment, argv, process, or filesystem.
+
+The presence of `PRODUCT_LOCUS_REPORT` is the entire gate. An absent path is a
+muted run, and an operator outside the product owns the endpoint and retention.
+
+4. Call `start` as the first statement of `main`.
+5. Attach `#[locus::trace(with = crate::observation::view())]` to three or four
+   core-path declarations. Inherent methods are declarations; inner expressions
+   and blocks are not. Split a function when its declaration is too coarse.
+6. Ignore observation outcomes on the business path, then prove it: run the same
+   command muted and observed and require an identical exit status, stdout
+   bytes, and stderr bytes.
+7. Consume the report, run the product's complete guard, then delete the adapter
+   whole. Treat every line of it as temporary syntax intrusion.
+
+```sh
+locus query locus.trace < report.jsonl
+locus query locus.trace KEY < report.jsonl
+```
+
+### Cold-start refusals
+
+- A traced declaration that reaches `std::process::exit` records `enter` and no
+  `return`, exactly as a panic does. Trace below the exit boundary, or raise the
+  exit into `main`.
+- Frames derive from the process seat, so spans are siblings rather than a tree.
+  Nesting, duration, and attribution stay downstream derivations.
+- A product guard that passes before the adapter is not evidence. Rerun it with
+  the adapter present.
 
 ## Query and inspect history
 
