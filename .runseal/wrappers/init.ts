@@ -34,7 +34,6 @@ await init({
     ".runseal/hooks/commit-msg",
     ".runseal/wrappers/guard.ts",
     ".runseal/wrappers/init.ts",
-    ".runseal/wrappers/land.ts",
     ".runseal/wrappers/release.ts",
     ".forgejo/workflows/guard.yml",
   ],

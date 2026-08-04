@@ -95,5 +95,5 @@ policy.
 - Never commit directly on `main`.
 - Run `runseal :init` after clone.
 - Run `runseal :guard` before landing.
-- Land only through `runseal :land`.
+- Land only through `plumb land`.
 - Publish the coupled Cargo packages only through `runseal :release`.
