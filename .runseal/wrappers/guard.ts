@@ -32,7 +32,6 @@ await guard(
         "--frozen=true",
         ".runseal/wrappers/guard.ts",
         ".runseal/wrappers/init.ts",
-        ".runseal/wrappers/land.ts",
         ".runseal/wrappers/release.ts",
       ]]],
     },
