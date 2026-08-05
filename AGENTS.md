@@ -94,6 +94,6 @@ policy.
 
 - Never commit directly on `main`.
 - Run `runseal :init` after clone.
-- Run `runseal :guard` before landing.
+- Before landing, run `plumb doctor .`, `cargo fmt --all --check`, `cargo clippy --locked --workspace --all-targets -- -D warnings`, `cargo check --locked --workspace --all-targets --release`, `cargo test --locked --workspace`, and `ectropy .`.
 - Land only through `plumb land`.
 - Publish the coupled Cargo packages only through `runseal :release`.

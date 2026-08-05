@@ -11,4 +11,9 @@ if [ "$branch" = "main" ]; then
   exit 1
 fi
 
-runseal :guard
+plumb doctor .
+cargo fmt --all --check
+cargo clippy --locked --workspace --all-targets -- -D warnings
+cargo check --locked --workspace --all-targets --release
+cargo test --locked --workspace
+ectropy .

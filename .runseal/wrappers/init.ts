@@ -32,7 +32,6 @@ await init({
     ".runseal/deno.lock",
     ".runseal/hooks/pre-commit",
     ".runseal/hooks/commit-msg",
-    ".runseal/wrappers/guard.ts",
     ".runseal/wrappers/init.ts",
     ".runseal/wrappers/release.ts",
     ".forgejo/workflows/guard.yml",
