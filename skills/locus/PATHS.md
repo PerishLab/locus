@@ -3,9 +3,11 @@
 ## Instrument a product
 
 Read the product's own instructions and normal verification first, then follow
-`docs/run/adapter.md` in the Locus repository: one dependency, one isolated
-module carrying the seat, gate, and policy, `start` as the first statement of
-`main`, and `#[locus::trace]` on three or four core-path declarations.
+one bounded adapter path: add the Locus dependency to the crate holding the
+traced declarations; create one isolated module carrying a readonly Engine and
+Context seat, the Plumb-cascade gate, bounded collector chain, and file reporter;
+call its `start` first in `main`; attach `#[locus::trace(with = view())]` to
+three or four core-path function declarations.
 
 `PRODUCT_LOCUS_REPORT` is the entire gate and an absent path is a muted run.
 Read it through the Plumb cascade: a guarded product refuses raw environment
@@ -30,8 +32,7 @@ liveness, executor ownership, parenthood, lifecycle, or business authority.
 
 ## Change Locus itself
 
-Read `AGENTS.md`, then `docs/model/laws.md`, `docs/model/vocabulary.md`, and
-`docs/run/verify.md` as the change requires. Put Context, Atom, collector,
+Read `AGENTS.md` and `DESIGN.md`. Put Context, Atom, collector,
 generator, reporter, hook, and diagnostic mechanics in `crates/locus`, source
 adaptation in `crates/macro`, stdin-first consumption in `crates/cli`. Write the
 law before or with its mechanism, and keep product analyzer identities,
