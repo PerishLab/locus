@@ -86,8 +86,7 @@ policy.
 - `crates/macro` is the source adapter and shares the exact release version.
 - `crates/cli` is the stdin-first structural inspector and exact Atom query.
 - `skills/locus` carries the temporary transparent-instrumentation convention.
-- `docs/model/laws.md` is the prose wall for semantic laws.
-- `docs/run/verify.md` is the cold-start verification boundary.
+- `DESIGN.md` is the current semantic doctrine for observation and identity.
 - `.runseal` and `.forgejo` are thin workshop operator surfaces.
 
 ## Operating
