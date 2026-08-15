@@ -6,7 +6,6 @@ license.workspace = true
 repository.workspace = true
 publish = ["perish"]
 description = "Readonly context and immutable observation substrate"
-readme = "../../README.md"
 
 [lib]
 path = "src/lib.rs"
