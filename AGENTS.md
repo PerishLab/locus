@@ -105,3 +105,22 @@ policy.
 - Never commit directly on `main`.
 - Before landing, run `plumb doctor .`, `cargo fmt --all --check`, `cargo clippy --locked --workspace --all-targets -- -D warnings`, `cargo check --locked --workspace --all-targets --release`, `cargo test --locked --workspace`, and `ectropy .`.
 - Land only through `plumb land`.
+
+## Release
+
+- Locus is a Cargo-only product. It publishes `locus-macro`, `locus`, and
+  `locus-cli` to the `perish` registry and declares no binaries and no release
+  authority, so it has no target matrix, archive, capsule, seal, stable pointer
+  or activation. The `locus` command reaches an operator through `locus-cli`.
+- A release line is a `release/<version>` branch cut from a guarded `main`. The
+  lane reads the version from that ref; the dispatch inputs for channel and
+  version are inert.
+- Dispatch `release-exact` with `publish` false to rehearse, then true to
+  publish. The projection is idempotent: it compares each crate against the
+  registry ledger, skips what is already published identically, and reads every
+  publication back, so a rerun after a partial failure resumes.
+- A stable version requires `docs/CHANGELOG/v<version>/{en,zh}/{INDEX.md,MIGRATION.md}`,
+  enforced in the lane before anything is published. A prerelease is exempt by
+  the same law.
+- Publish crates in dependency order and never by hand. `cargo publish` outside
+  the lane leaves no guard evidence and no ledger readback.
