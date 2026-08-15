@@ -37,7 +37,10 @@ and engine diagnostic handoff.
 - CLI inspection reads one root `locus.toml`, consumes JSONL from stdin, and
   composes Locus-owned mappings with product-declared thresholds. It emits only
   domain-independent structural findings and an explicit coverage summary. It
-  never changes Atom acceptance or attributes a finding to a cause.
+  never changes Atom acceptance or attributes a finding to a cause. The held
+  time mapping runs the span derivation, refuses the same crossings, and counts
+  the refused spans in its summary; it groups by the entering record's own
+  Context and never inherits a key from an enclosing frame.
 - CLI query consumes JSONL from stdin and selects one exact role with an
   optional exact key. It enumerates identities or replays matching logical
   Atoms, then reports complete coverage without inferring lifecycle, ownership,
@@ -45,8 +48,11 @@ and engine diagnostic handoff.
 - CLI span consumes JSONL from stdin and pairs one entering source record with
   its returning record. It reports elapsed and held time per traced declaration
   and names every entered span that never returned. Held time reads containment
-  within one trace as the only nesting evidence, so partial overlap refuses the
-  whole derivation rather than attributing a share it cannot support.
+  within one trace as the only nesting evidence, so partial overlap refuses
+  rather than attributing a share it cannot support. That refusal is scoped to
+  the time the crossing reaches: every span meeting it is named and dropped,
+  every span clear of it still derives. Scoping never widens what is claimed,
+  because a dropped span always contains any span dropped inside it.
 
 ## Ownership
 

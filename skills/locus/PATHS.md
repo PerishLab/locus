@@ -27,11 +27,19 @@ with explicit zero coverage; malformed input refuses without partial output.
 
 Use `span` to pair entering and returning source records into elapsed and held
 time per declaration. It names every span that entered and never returned, and
-refuses the whole derivation when spans overlap without nesting.
+refuses where spans overlap without nesting. That refusal is a `tangled` record
+naming the trace, the crossing window, and the declarations dropped inside it;
+spans clear of that window still derive, so a concurrent burst costs its own
+window rather than the file.
 
 Use `inspect ROOT` only when the product root carries `locus.toml`. Inspection
 composes Locus-owned mappings with product-declared thresholds and emits
-measurements, never cause or repair advice. Read neither command as process
+measurements, never cause or repair advice. Its mapping kinds are
+`representation-bytes`, `dominant-content-prefix-percent`, and
+`held-time-nanoseconds`; the last runs the span derivation, so its summary
+`refused` count matches what `span` drops on the same input. It groups by the
+entering record's own Context, so bind a role onto source records before
+expecting a group finer than the trace. Read neither command as process
 liveness, executor ownership, parenthood, lifecycle, or business authority.
 
 ## Change Locus itself

@@ -1,4 +1,5 @@
 use super::model::{Group, Measurement};
+use crate::derive::Ledger;
 use locus::{Atom, Edge, Role};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -10,11 +11,17 @@ const MAXIMUM: usize = 64;
 pub enum Mapping {
     Bytes { group: Role },
     Prefix { group: Role },
+    Held { group: Role },
 }
 
 pub struct Observation {
     pub group: Group,
     pub measurement: Measurement,
+}
+
+pub(super) struct Reading {
+    pub observations: Vec<Observation>,
+    pub refused: u64,
 }
 
 pub(super) enum State {
@@ -26,6 +33,17 @@ pub(super) enum State {
         role: Role,
         groups: BTreeMap<String, Prefix>,
     },
+    Held {
+        role: Role,
+        ledger: Ledger,
+    },
+}
+
+#[derive(Default)]
+pub(super) struct Span {
+    spans: u64,
+    inclusive: u128,
+    held: u128,
 }
 
 #[derive(Default)]
@@ -44,6 +62,10 @@ impl State {
             Mapping::Prefix { group } => Self::Prefix {
                 role: group.clone(),
                 groups: BTreeMap::new(),
+            },
+            Mapping::Held { group } => Self::Held {
+                role: group.clone(),
+                ledger: Ledger::grouped(Some(group.clone())),
             },
         }
     }
@@ -65,12 +87,14 @@ impl State {
                 };
                 groups.entry(key.clone()).or_default().observe(atom)?;
             }
+            Self::Held { ledger, .. } => ledger.observe(atom)?,
         }
         Ok(())
     }
 
-    pub fn finish(self) -> Vec<Observation> {
-        match self {
+    pub fn finish(self) -> Reading {
+        let mut refused = 0;
+        let observations = match self {
             Self::Bytes { role, groups } => groups
                 .into_iter()
                 .map(|(key, value)| Observation {
@@ -87,6 +111,35 @@ impl State {
                     })
                 })
                 .collect(),
+            Self::Held { role, ledger } => {
+                let derived = ledger.finish();
+                refused = derived.tangles.iter().map(|tangle| tangle.spans).sum();
+                let mut groups: BTreeMap<String, Span> = BTreeMap::new();
+                for held in derived.held {
+                    let Some(key) = held.group else {
+                        continue;
+                    };
+                    let span = groups.entry(key).or_default();
+                    span.spans += 1;
+                    span.inclusive += held.inclusive;
+                    span.held += held.held;
+                }
+                groups
+                    .into_iter()
+                    .map(|(key, span)| Observation {
+                        group: Group::new(&role, key),
+                        measurement: Measurement::Held {
+                            value: span.held,
+                            spans: span.spans,
+                            inclusive: span.inclusive,
+                        },
+                    })
+                    .collect()
+            }
+        };
+        Reading {
+            observations,
+            refused,
         }
     }
 }
