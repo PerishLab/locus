@@ -4,16 +4,16 @@ packages = ["locus-macro", "locus", "locus-cli"]
 
 [[document]]
 strategy = "agent"
-source = [{ path = ".", seal = "4f644d7aa886271dfcba96539784b8243e6907ebed5051bd80f2d623cec1f95e" }]
+source = [{ path = ".", seal = "c07b1ccbb393f85e75ffda16c538febc15586b6adca6adf76da6fff8bf1c0c13" }]
 target-seal = "00e0f797246511e981d9e8ed3a9aa2e772b928094f7fb6e0c2653ac602243b9c"
 
 [[document]]
 strategy = "design"
-source = [{ path = ".", seal = "4f644d7aa886271dfcba96539784b8243e6907ebed5051bd80f2d623cec1f95e" }]
+source = [{ path = ".", seal = "c07b1ccbb393f85e75ffda16c538febc15586b6adca6adf76da6fff8bf1c0c13" }]
 target-seal = "26b279abea611a972659d294385af8d62b1c0cbb87089659cf80aa82e0da54e4"
 
 [[document]]
 strategy = "brief"
 name = "locus"
-source = [{ path = ".", seal = "4f644d7aa886271dfcba96539784b8243e6907ebed5051bd80f2d623cec1f95e" }]
+source = [{ path = ".", seal = "c07b1ccbb393f85e75ffda16c538febc15586b6adca6adf76da6fff8bf1c0c13" }]
 target-seal = "7f50559ccde68e5590b3c978cfe93db0f0be3bbce9ad1eccac31ffbfc29586b8"
