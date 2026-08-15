@@ -56,6 +56,14 @@ enumerates sorted identities; an optional exact key replays matching Atoms in
 input order. Every successful query reports total, matched, and identity
 coverage. It infers no liveness, ownership, lifecycle, causality, or repair.
 
+Span derivation pairs one entering source record with its returning record and
+reports elapsed and held time per traced declaration. An entered span that never
+returned is named rather than dropped, because panic, abort, cancellation, and
+process loss are exactly the cases worth reading. Held time treats containment
+within one trace as the only nesting evidence there is; spans that overlap
+without nesting refuse the whole derivation instead of dividing a duration the
+records cannot apportion.
+
 Inspection reads one product `locus.toml` and composes a closed Locus mapping
 with a product-owned analyzer identity and threshold. Findings are structural
 measurements, not attribution. The initial mappings measure encoded bytes and

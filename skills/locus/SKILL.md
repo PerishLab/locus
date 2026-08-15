@@ -28,6 +28,7 @@ repository this brief is silent.
 ```bash
 locus query locus.trace < atoms.jsonl
 locus query locus.trace TRACE_KEY < atoms.jsonl
+locus span < atoms.jsonl
 locus inspect /path/to/product < atoms.jsonl
 ```
 

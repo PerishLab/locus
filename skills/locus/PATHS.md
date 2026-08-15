@@ -25,6 +25,10 @@ Atoms in input order. Read the final `locus.query/v1` summary for total,
 matched, and identity coverage. Empty or unmatched input is a successful query
 with explicit zero coverage; malformed input refuses without partial output.
 
+Use `span` to pair entering and returning source records into elapsed and held
+time per declaration. It names every span that entered and never returned, and
+refuses the whole derivation when spans overlap without nesting.
+
 Use `inspect ROOT` only when the product root carries `locus.toml`. Inspection
 composes Locus-owned mappings with product-declared thresholds and emits
 measurements, never cause or repair advice. Read neither command as process

@@ -1,6 +1,7 @@
 mod input;
 mod inspect;
 mod query;
+mod span;
 
 use clap::{Parser, Subcommand};
 use std::io::{self, BufReader, Write};
@@ -24,12 +25,14 @@ enum Command {
         role: String,
         key: Option<String>,
     },
+    Span,
 }
 
 fn main() -> ExitCode {
     match Cli::parse().command {
         Command::Inspect { root } => inspect(root),
         Command::Query { role, key } => query(role, key),
+        Command::Span => span(),
     }
 }
 
@@ -89,6 +92,28 @@ fn query(role: String, key: Option<String>) -> ExitCode {
             .and_then(|_| writeln!(output).map_err(serde_json::Error::io))
         {
             eprintln!("locus: cannot write query: {error}");
+            return ExitCode::from(2);
+        }
+    }
+    ExitCode::SUCCESS
+}
+
+fn span() -> ExitCode {
+    let input = io::stdin();
+    let report = match span::scan(BufReader::new(input.lock())) {
+        Ok(report) => report,
+        Err(error) => {
+            eprintln!("locus: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let output = io::stdout();
+    let mut output = output.lock();
+    for record in report.records() {
+        if let Err(error) = serde_json::to_writer(&mut output, &record)
+            .and_then(|_| writeln!(output).map_err(serde_json::Error::io))
+        {
+            eprintln!("locus: cannot write derivation: {error}");
             return ExitCode::from(2);
         }
     }
