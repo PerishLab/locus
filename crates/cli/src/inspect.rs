@@ -40,13 +40,15 @@ impl<'a> Runtime<'a> {
         }
     }
 
-    fn findings(self) -> Vec<Finding> {
-        self.state
-            .finish()
+    fn findings(self) -> (Vec<Finding>, u64) {
+        let reading = self.state.finish();
+        let findings = reading
+            .observations
             .into_iter()
             .filter(|observation| self.analyzer.threshold.exceeded(&observation.measurement))
             .map(|observation| Finding::new(self.analyzer, observation))
-            .collect()
+            .collect();
+        (findings, reading.refused)
     }
 }
 
@@ -62,11 +64,14 @@ pub fn scan(reader: impl BufRead, config: &Config) -> Result<Report, String> {
         }
         Ok(())
     })?;
-    let mut findings = runtimes
-        .into_iter()
-        .flat_map(Runtime::findings)
-        .collect::<Vec<_>>();
+    let mut findings = Vec::new();
+    let mut refused = 0_u64;
+    for runtime in runtimes {
+        let (found, dropped) = runtime.findings();
+        findings.extend(found);
+        refused += dropped;
+    }
     findings.sort_by(|left, right| left.identity().cmp(&right.identity()));
-    let summary = Summary::new(config.coverage(), records, findings.len());
+    let summary = Summary::new(config.coverage(), records, findings.len(), refused);
     Ok(Report { findings, summary })
 }

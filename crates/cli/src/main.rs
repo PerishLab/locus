@@ -1,3 +1,4 @@
+mod derive;
 mod input;
 mod inspect;
 mod query;

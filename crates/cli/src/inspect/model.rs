@@ -18,6 +18,7 @@ impl Threshold {
             Measurement::Prefix {
                 atoms, repeated, ..
             } => u128::from(*repeated) * 100 > u128::from(*atoms) * u128::from(self.above),
+            Measurement::Held { value, .. } => *value > u128::from(self.above),
         }
     }
 }
@@ -48,6 +49,12 @@ pub enum Measurement {
         atoms: u64,
         repeated: u64,
         bytes: usize,
+    },
+    #[serde(rename = "held-time-nanoseconds")]
+    Held {
+        value: u128,
+        spans: u64,
+        inclusive: u128,
     },
 }
 
@@ -85,16 +92,18 @@ pub struct Summary {
     coverage: Vec<String>,
     records: u64,
     findings: usize,
+    refused: u64,
 }
 
 impl Summary {
-    pub fn new(coverage: Vec<String>, records: u64, findings: usize) -> Self {
+    pub fn new(coverage: Vec<String>, records: u64, findings: usize, refused: u64) -> Self {
         Self {
             schema: SCHEMA,
             kind: "summary",
             coverage,
             records,
             findings,
+            refused,
         }
     }
 }

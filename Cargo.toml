@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/cli", "crates/locus", "crates/macro"]
 
 [workspace.package]
-version = "0.2.2"
+version = "0.3.0"
 edition = "2024"
 license = "MIT"
 repository = "https://git.perish.top/PerishLab/locus"
@@ -11,8 +11,8 @@ repository = "https://git.perish.top/PerishLab/locus"
 [workspace.dependencies]
 clap = { version = "4", features = ["derive"] }
 getrandom = "0.3"
-locus = { path = "crates/locus", version = "=0.2.2", registry = "perish" }
-locus-macro = { path = "crates/macro", version = "=0.2.2", registry = "perish" }
+locus = { path = "crates/locus", version = "=0.3.0", registry = "perish" }
+locus-macro = { path = "crates/macro", version = "=0.3.0", registry = "perish" }
 plumb = { version = "0", registry = "perish" }
 proc-macro2 = "1"
 quote = "1"

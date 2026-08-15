@@ -83,11 +83,53 @@ fn overlap() {
     ]
     .join("\n");
     let output = run(&input);
-    assert!(!output.status.success());
-    assert!(output.stdout.is_empty());
-    let message = String::from_utf8_lossy(&output.stderr);
-    assert!(message.contains("overlap without nesting"), "{message}");
-    assert!(message.contains("underivable"), "{message}");
+    assert!(output.status.success());
+    let records = records(&output);
+    let tangled = records.first().expect("tangled");
+    assert_eq!(tangled["kind"], "tangled");
+    assert_eq!(tangled["trace"], "t");
+    assert_eq!(tangled["at"], 0);
+    assert_eq!(tangled["until"], 30);
+    assert_eq!(tangled["spans"], 2);
+    assert_eq!(tangled["declarations"], json!(["m::inner", "m::outer"]));
+    let summary = records.last().expect("summary");
+    assert_eq!(summary["declarations"], 0);
+    assert_eq!(summary["tangled"], 1);
+    assert_eq!(summary["refused"], 2);
+}
+
+#[test]
+fn scoped() {
+    let input = [
+        atom(0, "a", "enter", "outer"),
+        atom(10, "b", "enter", "inner"),
+        atom(20, "a", "return", "outer"),
+        atom(30, "b", "return", "inner"),
+        atom(100, "c", "enter", "clean"),
+        atom(110, "d", "enter", "kid"),
+        atom(120, "d", "return", "kid"),
+        atom(130, "c", "return", "clean"),
+    ]
+    .join("\n");
+    let output = run(&input);
+    assert!(output.status.success());
+    let records = records(&output);
+    let clean = records
+        .iter()
+        .find(|record| record["declaration"] == "m::clean")
+        .expect("clean");
+    assert_eq!(clean["inclusive"], 30);
+    assert_eq!(clean["held"], 20);
+    assert!(
+        !records
+            .iter()
+            .any(|record| record["declaration"] == "m::outer"),
+        "tangled declarations stay refused"
+    );
+    let summary = records.last().expect("summary");
+    assert_eq!(summary["declarations"], 2);
+    assert_eq!(summary["tangled"], 1);
+    assert_eq!(summary["refused"], 2);
 }
 
 #[test]

@@ -29,6 +29,8 @@ enum Shape {
     Bytes { group: Role },
     #[serde(rename = "dominant-content-prefix-percent")]
     Prefix { group: Role },
+    #[serde(rename = "held-time-nanoseconds")]
+    Held { group: Role },
 }
 
 pub struct Analyzer {
@@ -88,6 +90,7 @@ impl From<Shape> for Mapping {
         match spec {
             Shape::Bytes { group } => Self::Bytes { group },
             Shape::Prefix { group } => Self::Prefix { group },
+            Shape::Held { group } => Self::Held { group },
         }
     }
 }

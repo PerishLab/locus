@@ -14,6 +14,11 @@ move a derived quantity into the substrate. `locus span` is that derivation:
 it reads containment inside one trace and refuses when spans overlap without
 nesting, rather than apportioning a duration the records cannot support.
 
+A trace is a role, not a process, so concurrent work under one trace crosses
+without nesting as a matter of course. Read a `tangled` record as that window
+and nothing more: it does not name a defect in the product, and the readings
+outside it stand.
+
 ## The product guard was already green
 
 A guard that passed before the adapter is not evidence. Rerun it with the

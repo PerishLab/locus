@@ -61,14 +61,32 @@ reports elapsed and held time per traced declaration. An entered span that never
 returned is named rather than dropped, because panic, abort, cancellation, and
 process loss are exactly the cases worth reading. Held time treats containment
 within one trace as the only nesting evidence there is; spans that overlap
-without nesting refuse the whole derivation instead of dividing a duration the
-records cannot apportion.
+without nesting refuse instead of dividing a duration the records cannot
+apportion.
+
+That refusal is scoped to the time the crossing reaches rather than to the whole
+input. A trace is a semantic role, not a process, so concurrent work under one
+trace interleaves by construction and a single crossing would otherwise discard
+every unrelated reading in the file. The scope is honest because containment
+makes it closed: any span enclosing a dropped span meets the same crossing and
+is dropped with it, so a surviving span never subtracts a child that was refused.
+Recovering the crossing itself would take a parent link the records do not
+carry, and guessing one would be the attribution this derivation refuses.
 
 Inspection reads one product `locus.toml` and composes a closed Locus mapping
 with a product-owned analyzer identity and threshold. Findings are structural
-measurements, not attribution. The initial mappings measure encoded bytes and
-dominant decoded content prefix by Context group. Empty coverage is explicit;
-malformed declaration or input refuses without partial output.
+measurements, not attribution. The mappings measure encoded bytes, dominant
+decoded content prefix, and held time by Context group. Empty coverage is
+explicit; malformed declaration or input refuses without partial output.
+
+Held time runs the span derivation rather than a second one, so a mapping and
+the `span` command refuse the same crossings and drop the same spans; the
+summary counts what was refused so a threshold is never read against a silently
+shortened total. A group key comes from the entering record's own Context and is
+never inherited from an enclosing frame, because reaching outward for a key
+would be the attribution inspection does not make. A product that binds no role
+onto its source records therefore groups only by trace, which is a statement
+about that product's Context, not a gap in the mapping.
 
 ## Ownership
 
