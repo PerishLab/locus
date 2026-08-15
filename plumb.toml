@@ -1,15 +1,15 @@
 [[document]]
 strategy = "agent"
-source = [{ path = ".", seal = "546a4ade6db5a52cb45b597f0418727138e7e9ac25a1f039d0624036243e0726" }]
-target-seal = "f71fa50de04818a390a625fd3d28818afa378648f1a5d757184dc35ad40515eb"
+source = [{ path = ".", seal = "b062a1799aadbd382a8996063dffb5ec4387b12f148624355ea1a81bc111a53c" }]
+target-seal = "1f906c937aa017b235407bf172ba52860206622b24aa84699c5c26d90f6331c7"
 
 [[document]]
 strategy = "design"
-source = [{ path = ".", seal = "546a4ade6db5a52cb45b597f0418727138e7e9ac25a1f039d0624036243e0726" }]
-target-seal = "60060d64ae43a146f6fe58e1be57301c42f95f887d3e810bda1b029bbd517b97"
+source = [{ path = ".", seal = "b062a1799aadbd382a8996063dffb5ec4387b12f148624355ea1a81bc111a53c" }]
+target-seal = "cfd1f8d775ca2cd1208f4296f98cec9857c27474552d6862b8547788f17e6bde"
 
 [[document]]
 strategy = "brief"
 name = "locus"
-source = [{ path = ".", seal = "546a4ade6db5a52cb45b597f0418727138e7e9ac25a1f039d0624036243e0726" }]
-target-seal = "11b79b4dd5df970d9c8f5b49be22b0b969e3a90a0a91331c616e6c5c0c1f6bd4"
+source = [{ path = ".", seal = "b062a1799aadbd382a8996063dffb5ec4387b12f148624355ea1a81bc111a53c" }]
+target-seal = "8be2e489b92ea6817b82d900f0d1984e95c549c3c92456288499de890ac540c6"

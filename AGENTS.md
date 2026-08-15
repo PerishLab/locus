@@ -42,6 +42,11 @@ and engine diagnostic handoff.
   optional exact key. It enumerates identities or replays matching logical
   Atoms, then reports complete coverage without inferring lifecycle, ownership,
   causality, or liveness.
+- CLI span consumes JSONL from stdin and pairs one entering source record with
+  its returning record. It reports elapsed and held time per traced declaration
+  and names every entered span that never returned. Held time reads containment
+  within one trace as the only nesting evidence, so partial overlap refuses the
+  whole derivation rather than attributing a share it cannot support.
 
 ## Ownership
 

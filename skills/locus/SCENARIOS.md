@@ -10,7 +10,9 @@ exactly as a panic does. Trace below the exit boundary, or raise the exit into
 
 Frames derive from the process seat, so nesting, duration, and attribution stay
 downstream derivations. Do not add a parent role to recover a tree; that would
-move a derived quantity into the substrate.
+move a derived quantity into the substrate. `locus span` is that derivation:
+it reads containment inside one trace and refuses when spans overlap without
+nesting, rather than apportioning a duration the records cannot support.
 
 ## The product guard was already green
 
