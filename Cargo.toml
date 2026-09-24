@@ -6,7 +6,7 @@ members = ["crates/cli", "crates/locus", "crates/macro"]
 version = "0.3.0"
 edition = "2024"
 license = "MIT"
-repository = "https://git.perish.top/PerishLab/locus"
+repository = "https://github.com/PerishLab/locus"
 
 [workspace.dependencies]
 clap = { version = "4", features = ["derive"] }

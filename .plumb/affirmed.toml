@@ -1,0 +1,10 @@
+[[record]]
+target = "skills/locus/SKILL.md"
+rule = "rule://seat/affirmed"
+authority = "734008e1e54dc5e1d5354df8e1591f8738b6b589a3527a07ca4aaf0cd9f2b155"
+
+[[record]]
+target = "AGENTS.md"
+rule = "rule://seat/affirmed"
+authority = "734008e1e54dc5e1d5354df8e1591f8738b6b589a3527a07ca4aaf0cd9f2b155"
+

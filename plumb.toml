@@ -1,3 +1,36 @@
+[layout]
+
+[[layout.seat]]
+path = "crates/*"
+anchor = ["Cargo.toml"]
+note = "The locus library, its source adapters, and the query CLI."
+
+[[layout.seat]]
+path = "charts/*"
+kind = "retired"
+note = "This product ships no Helm chart; the tombstone keeps the domain seat absent."
+
+[[layout.seat]]
+path = ".cargo"
+note = "Cargo registry configuration."
+
+[[layout.seat]]
+path = ".runseal"
+note = "Committed inert Runseal resources."
+
+[[layout.file]]
+name = ["Cargo.toml", "Cargo.lock", "rust-toolchain.toml"]
+note = "Rust workspace anchors and the toolchain wharf builds with."
+
+[[layout.file]]
+name = ["DESIGN.md"]
+note = "The law Locus implements, beside the implementation."
+
+[release]
+product = "locus"
+authority = "https://releases.locus.perish.uk"
+skill = false
+
 [release.cargo]
 registry = "perish"
 packages = ["locus-macro", "locus", "locus-cli"]

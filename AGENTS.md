@@ -98,7 +98,7 @@ policy.
 - `crates/cli` is the stdin-first structural inspector and exact Atom query.
 - `skills/locus` carries the temporary transparent-instrumentation convention.
 - `DESIGN.md` is the current semantic doctrine for observation and identity.
-- `.runseal` and `.forgejo` are thin workshop operator surfaces.
+- `.runseal` is a thin workshop operator surface.
 
 ## Operating
 
@@ -108,19 +108,18 @@ policy.
 
 ## Release
 
-- Locus is a Cargo-only product. It publishes `locus-macro`, `locus`, and
-  `locus-cli` to the `perish` registry and declares no binaries and no release
-  authority, so it has no target matrix, archive, capsule, seal, stable pointer
-  or activation. The `locus` command reaches an operator through `locus-cli`.
-- A release line is a `release/<version>` branch cut from a guarded `main`. The
-  lane reads the version from that ref; the dispatch inputs for channel and
-  version are inert.
-- Dispatch `release-exact` with `publish` false to rehearse, then true to
-  publish. The projection is idempotent: it compares each crate against the
-  registry ledger, skips what is already published identically, and reads every
-  publication back, so a rerun after a partial failure resumes.
-- A stable version requires `docs/CHANGELOG/v<version>/{en,zh}/{INDEX.md,MIGRATION.md}`,
-  enforced in the lane before anything is published. A prerelease is exempt by
-  the same law.
-- Publish crates in dependency order and never by hand. `cargo publish` outside
-  the lane leaves no guard evidence and no ledger readback.
+- Locus is a Cargo-only product. wharf publishes `locus-macro`, `locus`, and
+  `locus-cli` to the `perish` registry at `cargo.perish.uk`. It declares no
+  binaries and no skill, so it has no target matrix, archive, manager or skill
+  generation; its release authority carries the distribution record wharf
+  keeps for every marker. The `locus` command reaches an operator through `locus-cli`.
+- A release follows Plumb's lifecycle: `plumb release open` cuts
+  `release/<version>` from a guarded `main`, `plumb release stamp` marks it,
+  and `plumb ship dispatch` hands the marker to wharf, which publishes the
+  crates in dependency order and reads each one back from the index. A rerun
+  publishes only what is missing.
+- A stable version owes its changelog on Depot, consigned with
+  `plumb depot consign --kind changelog`, before the next marker is stamped;
+  `plumb release owed` lists what is still owed.
+- Never publish a crate by hand. A crate published outside wharf leaves no
+  distribution record.
