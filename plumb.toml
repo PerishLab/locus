@@ -6,11 +6,6 @@ anchor = ["Cargo.toml"]
 note = "The locus library, its source adapters, and the query CLI."
 
 [[layout.seat]]
-path = "charts/*"
-kind = "retired"
-note = "This product ships no Helm chart; the tombstone keeps the domain seat absent."
-
-[[layout.seat]]
 path = ".cargo"
 note = "Cargo registry configuration."
 
