@@ -1,10 +1,5 @@
 [[record]]
-target = "skills/locus/SKILL.md"
-rule = "rule://seat/affirmed"
-authority = "f302c31d338d329e713351b2406f8cacb86c5792520bf0344cde84d672f80a23"
-
-[[record]]
 target = "AGENTS.md"
 rule = "rule://seat/affirmed"
-authority = "f302c31d338d329e713351b2406f8cacb86c5792520bf0344cde84d672f80a23"
+authority = "4149a0b89e2251f839752bb10630c561276eb5cdf298d60951f5f546f77ad53d"
 
