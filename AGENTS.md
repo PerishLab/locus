@@ -97,7 +97,7 @@ policy.
 - `crates/macro` is the source adapter and shares the exact release version.
 - `crates/cli` is the stdin-first structural inspector and exact Atom query.
 - `DESIGN.md` is the current semantic doctrine for observation and identity.
-- `.runseal` is a thin workshop operator surface.
+- `.runseal/hooks` carries the Plumb Guard Git hooks; `runseal.toml` is the Runseal profile.
 
 ## Operating
 
