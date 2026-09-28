@@ -112,13 +112,10 @@ policy.
   binaries and no skill, so it has no target matrix, archive, manager or skill
   generation; its release authority carries the distribution record wharf
   keeps for every marker. The `locus` command reaches an operator through `locus-cli`.
-- A release follows Plumb's lifecycle: `plumb release open` cuts
-  `release/<version>` from a guarded `main`, `plumb release stamp` marks it,
-  and `plumb ship dispatch` hands the marker to wharf, which publishes the
-  crates in dependency order and reads each one back from the index. A rerun
-  publishes only what is missing.
-- A stable version owes its changelog on Depot, consigned with
-  `plumb depot consign --kind changelog`, before the next marker is stamped;
-  `plumb release owed` lists what is still owed.
+- A release follows Plumb's lifecycle (`plumb release --help`); wharf
+  publishes the crates in dependency order and reads each one back from the
+  index. A rerun publishes only what is missing.
+- A stable version owes its changelog on Depot before the next marker is
+  stamped.
 - Never publish a crate by hand. A crate published outside wharf leaves no
   distribution record.
