@@ -1,91 +1,25 @@
-use crate::atom::{Accepted, Atom, Candidate, Choice, Collection, Origin};
+use crate::atom::{Accepted, Atom, Candidate, Choice, Collection, Header, Origin};
 use crate::collector::{self, Builtin};
 use crate::generator::{self, Generate};
 use crate::hook::{Adaptor, Diagnostic, Hook, Observation, Outcome, Status};
+use crate::policy::{Config, Policy};
 use crate::reporter::{self, Report};
 use crate::{Context, Error, Key, Role};
 use std::cell::Cell;
 use std::collections::BTreeMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 thread_local! {
     static OBSERVING: Cell<bool> = const { Cell::new(false) };
 }
 
-#[derive(Clone, Debug)]
-pub struct Policy {
-    collectors: BTreeMap<String, Vec<collector::Spec>>,
-    enabled: bool,
-    reporter: Option<reporter::Spec>,
-    fallback: generator::Spec,
-    generators: BTreeMap<Role, generator::Spec>,
-}
-
-impl Default for Policy {
-    fn default() -> Self {
-        Self {
-            collectors: BTreeMap::new(),
-            enabled: false,
-            reporter: None,
-            fallback: generator::Spec::random(),
-            generators: BTreeMap::new(),
-        }
-    }
-}
-
-impl Policy {
-    pub fn collector(mut self, binding: impl Into<String>, spec: collector::Spec) -> Self {
-        self.collectors
-            .entry(binding.into())
-            .or_default()
-            .push(spec);
-        self
-    }
-
-    pub fn reporter(mut self, spec: reporter::Spec) -> Self {
-        self.enabled = true;
-        self.reporter = Some(spec);
-        self
-    }
-
-    pub fn fallback(mut self, spec: generator::Spec) -> Self {
-        self.fallback = spec;
-        self
-    }
-
-    pub fn generator(mut self, role: Role, spec: generator::Spec) -> Self {
-        self.generators.insert(role, spec);
-        self
-    }
-
-    pub fn disable(mut self) -> Self {
-        self.enabled = false;
-        self
-    }
-}
-
-pub struct Config {
-    policy: Policy,
-    hook: Arc<dyn Hook>,
-}
-
-impl Config {
-    pub fn new(policy: Policy) -> Self {
-        Self {
-            policy,
-            hook: Arc::new(Adaptor),
-        }
-    }
-
-    pub fn hook(mut self, hook: Arc<dyn Hook>) -> Self {
-        self.hook = hook;
-        self
-    }
-}
-
 pub struct Engine {
+    producer: Option<String>,
+    instance: u64,
+    sequence: AtomicU64,
     collectors: BTreeMap<String, Vec<Builtin>>,
     enabled: bool,
     reporter: Option<(String, Box<dyn Report>)>,
@@ -120,7 +54,13 @@ impl Engine {
         } else {
             None
         };
+        if let Some(producer) = &policy.producer {
+            crate::policy::admit(producer)?;
+        }
         Ok(Self {
+            producer: policy.producer.clone(),
+            instance: instance()?,
+            sequence: AtomicU64::new(0),
             collectors,
             enabled: policy.enabled,
             reporter,
@@ -149,7 +89,16 @@ impl Engine {
                 return Err(error);
             }
         };
-        let atom = Atom::new(at, &context, choices, candidate);
+        let header = Header {
+            at,
+            id: format!(
+                "{:016x}{:016x}",
+                self.instance,
+                self.sequence.fetch_add(1, Ordering::Relaxed)
+            ),
+            producer: self.producer.clone(),
+        };
+        let atom = Atom::new(header, &context, choices, candidate);
         self.report(atom);
         Ok(Accepted::new(context))
     }
@@ -235,22 +184,38 @@ impl Engine {
     }
 
     fn report(&self, atom: Atom) {
-        let outcome = if !self.enabled {
-            Outcome::new(atom, None, Status::Gated, None)
-        } else if let Some((name, reporter)) = &self.reporter {
-            match reporter.report(&atom) {
-                Ok(()) => Outcome::new(atom, Some(name.clone()), Status::Delivered, None),
-                Err(error) => Outcome::new(atom, Some(name.clone()), Status::Failed, Some(error)),
-            }
-        } else {
-            Outcome::new(
-                atom,
-                None,
-                Status::Failed,
-                Some("enabled reporting has no reporter".into()),
-            )
-        };
+        let (outcome, loss) = self.deliver(atom);
         self.observe(Observation::Report(outcome));
+        if let Some(loss) = loss {
+            self.observe(Observation::Diagnostic(Diagnostic::new(
+                "reporter.loss",
+                loss,
+            )));
+        }
+    }
+
+    fn deliver(&self, atom: Atom) -> (Outcome, Option<String>) {
+        let Some((name, reporter)) = self.reporter.as_ref().filter(|_| self.enabled) else {
+            let (status, error) = if self.enabled {
+                (
+                    Status::Failed,
+                    Some("enabled reporting has no reporter".into()),
+                )
+            } else {
+                (Status::Gated, None)
+            };
+            return (Outcome::new(atom, None, status, error), None);
+        };
+        match reporter.report(&atom) {
+            Ok(loss) => (
+                Outcome::new(atom, Some(name.clone()), Status::Delivered, None),
+                loss,
+            ),
+            Err(error) => (
+                Outcome::new(atom, Some(name.clone()), Status::Failed, Some(error)),
+                None,
+            ),
+        }
     }
 
     fn observe(&self, observation: Observation) {
@@ -283,6 +248,13 @@ fn handoff(hook: &dyn Hook, observation: Observation) {
             )));
         }
     });
+}
+
+fn instance() -> Result<u64, Error> {
+    let mut bytes = [0_u8; 8];
+    getrandom::fill(&mut bytes)
+        .map_err(|error| Error::generator(format!("random generator failed: {error}")))?;
+    Ok(u64::from_le_bytes(bytes))
 }
 
 fn now() -> Result<u64, Error> {

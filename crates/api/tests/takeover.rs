@@ -118,11 +118,47 @@ fn malformed() {
     assert_eq!(rejected, "{\"not\":\"an atom\"}\n");
 }
 
+#[test]
+fn spooled() {
+    let home = temp("spooled");
+    let directory = home.join("spool");
+    let store: Arc<dyn Store> = Arc::new(Segments::open(home.join("store")).expect("store"));
+    let source = Source::new(&format!("concord={}", directory.display())).expect("source");
+    let takeover = Takeover::new(store.clone(), home.join("rejected")).spools(vec![source]);
+    let policy = Policy::default()
+        .producer("concord")
+        .reporter(reporter::Spec::spool(&directory, 1 << 30, 1_024));
+    let engine = Engine::bootstrap(Config::new(policy)).expect("engine");
+    emit(&engine, "writer", 0..100);
+    takeover.cycle().expect("cycle");
+    emit(&engine, "writer", 100..200);
+    takeover.cycle().expect("cycle");
+
+    let stored = stored(store.as_ref());
+    let active = fs::read_to_string(directory.join("active.jsonl")).expect("active");
+    assert_eq!(stored.len() + active.lines().count(), 200);
+    assert!(stored.len() > 150);
+    let ids: BTreeSet<_> = stored.iter().map(|atom| atom["id"].to_string()).collect();
+    assert_eq!(ids.len(), stored.len());
+    assert!(stored.iter().all(|atom| atom["producer"] == "concord"));
+    let left: Vec<_> = fs::read_dir(&directory)
+        .expect("spool")
+        .map(|entry| {
+            entry
+                .expect("entry")
+                .file_name()
+                .into_string()
+                .expect("name")
+        })
+        .collect();
+    assert_eq!(left, vec!["active.jsonl"]);
+}
+
 fn setup(home: &Path, grace: Duration) -> (Arc<dyn Store>, Takeover) {
     let store: Arc<dyn Store> = Arc::new(Segments::open(home.join("store")).expect("store"));
     let source =
         Source::new(&format!("concord={}", home.join("report.jsonl").display())).expect("source");
-    let takeover = Takeover::new(vec![source], store.clone(), grace, home.join("rejected"));
+    let takeover = Takeover::new(store.clone(), home.join("rejected")).files(vec![source], grace);
     (store, takeover)
 }
 

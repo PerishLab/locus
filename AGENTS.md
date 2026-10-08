@@ -28,6 +28,10 @@ and engine diagnostic handoff.
   refuses, and one successful sample is frozen into the accepted Atom.
 - One accepted append produces one immutable Atom record. Log is the
   append-only history of those records.
+- Every accepted Atom carries a record id, unique per acceptance (engine
+  instance and sequence), and the producer name the product declares in its
+  Policy. Both are fixed at acceptance so a consumer can deduplicate and
+  attribute without a reporter changing the fact.
 - Shared-file generation publishes a complete key before it becomes visible;
   concurrent initializers converge without observing a partial stored value.
 - Trace and span are semantic roles over records. They imply no parenthood,
@@ -40,6 +44,20 @@ and engine diagnostic handoff.
   Reporter failure never rolls acceptance back.
 - Callers select Locus-owned reporters through config. They cannot invoke,
   inject, flush, retry, or drain reporter implementations.
+- Reporter declarations are exact. A new reporting capability enters as a new
+  reporter name, never as a new option on an existing one, so an older engine
+  refuses it at bootstrap through the diagnostic path instead of half-honoring
+  it.
+- The spool reporter hands Atoms off through `active.jsonl` and immutable,
+  time-ordered `sealed-*` segments. Writers seal under the active file's lock
+  and never lock a sealed or claimed segment, so a consumer never blocks the
+  observed product. A consumer claims sealed segments by renaming them to
+  `claimed-*`, then stores and removes them; writers never touch a claimed
+  segment.
+- The product-declared spool ceiling bounds active, sealed, and claimed bytes
+  and is only a safety valve. Past it, the oldest unclaimed sealed segments are
+  deleted, their records counted in `loss.jsonl`, and the loss reported to the
+  hook as `reporter.loss`. Loss never re-enters the Atom stream.
 - Hooks observe immutable outcomes. Their return value cannot influence
   context, acceptance, or reporting.
 - Engine diagnostics never re-enter the Atom stream or reporter runtime. They
@@ -77,11 +95,14 @@ and engine diagnostic handoff.
   takes over verbatim and returns stored records byte for byte; query, span,
   and inspection stay in the CLI, so `--api` and stdin derive identically.
 - Three interfaces are fixed; the internals behind them may change.
-  - Handoff: the server takes a product report file by renaming it beside
-    itself, reads taken files by offset in complete lines, and removes one only
-    after it has stayed idle past the grace period. Products are unchanged, and
-    a writer holding the old descriptor loses nothing within the grace. Lines
-    that are not Atoms are kept in `rejected/<producer>.jsonl`, never stored.
+  - Handoff: a product's spool is drained by claiming its sealed segments,
+    storing them, and removing them. A product still on the file reporter is
+    taken over by renaming its report file beside itself, reading taken files
+    by offset in complete lines, and removing one only after it has stayed idle
+    past the grace period; a writer holding the old descriptor loses nothing
+    within the grace. That file form remains until products move to the spool.
+    Lines that are not Atoms are kept in `rejected/<producer>.jsonl`, never
+    stored.
   - Store: append a batch of one producer's records; read by time window
     `[from, to)` with an optional exact role/key and producer; drop one whole
     producer-day partition. Reads return stored order within a partition and
