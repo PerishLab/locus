@@ -49,11 +49,15 @@ and engine diagnostic handoff.
   refuses it at bootstrap through the diagnostic path instead of half-honoring
   it.
 - The spool reporter hands Atoms off through `active.jsonl` and immutable,
-  time-ordered `sealed-*` segments. Writers seal under the active file's lock
-  and never lock a sealed or claimed segment, so a consumer never blocks the
-  observed product. A consumer claims sealed segments by renaming them to
-  `claimed-*`, then stores and removes them; writers never touch a claimed
-  segment.
+  time-ordered `sealed-*` segments, with one contract on every platform a
+  product ships to. Writers serialize on `spool.lock`, a file never renamed,
+  and open `active.jsonl` only for one append, so no writer holds a segment
+  that may be sealed and no file identity is needed. The sealed and claimed
+  byte total lives in that lock file as an upper bound; a missing or stale
+  total is recounted from the directory. Writers never lock a sealed or
+  claimed segment, so a consumer never blocks the observed product. A consumer
+  claims sealed segments by renaming them to `claimed-*`, then stores and
+  removes them; writers never touch a claimed segment.
 - The product-declared spool ceiling bounds active, sealed, and claimed bytes
   and is only a safety valve. Past it, the oldest unclaimed sealed segments are
   deleted, their records counted in `loss.jsonl`, and the loss reported to the
