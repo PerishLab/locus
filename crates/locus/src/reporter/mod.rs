@@ -1,4 +1,3 @@
-#[cfg(unix)]
 pub mod spool;
 
 use crate::{Atom, Error};
@@ -83,7 +82,6 @@ pub(crate) fn build(spec: &Spec) -> Result<Box<dyn Report>, Error> {
 
 fn register(registry: &mut Registry) {
     registry.add("file", file);
-    #[cfg(unix)]
     registry.add("spool", spool::build);
 }
 

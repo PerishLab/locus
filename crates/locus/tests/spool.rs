@@ -171,6 +171,21 @@ fn identity() {
 }
 
 #[test]
+fn inherited() {
+    let directory = temp("inherited");
+    let line = format!("{}\n", json!({"at": 1, "choices": [], "context": {}}));
+    fs::write(
+        directory.join("sealed-00000000000000000001.jsonl"),
+        line.repeat(300),
+    )
+    .expect("seed");
+    let engine = engine(&directory, 8_192, 2_048, None);
+    emit(&engine, "single", 0);
+    assert!(Spooled(&directory).footprint() <= 8_192);
+    assert_eq!(Spooled(&directory).ledger()[0]["records"], 300);
+}
+
+#[test]
 fn refused() {
     let directory = temp("refused");
     let declarations = [

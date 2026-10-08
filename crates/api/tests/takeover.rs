@@ -141,7 +141,7 @@ fn spooled() {
     let ids: BTreeSet<_> = stored.iter().map(|atom| atom["id"].to_string()).collect();
     assert_eq!(ids.len(), stored.len());
     assert!(stored.iter().all(|atom| atom["producer"] == "concord"));
-    let left: Vec<_> = fs::read_dir(&directory)
+    let left = fs::read_dir(&directory)
         .expect("spool")
         .map(|entry| {
             entry
@@ -150,8 +150,11 @@ fn spooled() {
                 .into_string()
                 .expect("name")
         })
-        .collect();
-    assert_eq!(left, vec!["active.jsonl"]);
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        left,
+        BTreeSet::from(["active.jsonl".to_string(), "spool.lock".to_string()])
+    );
 }
 
 fn setup(home: &Path, grace: Duration) -> (Arc<dyn Store>, Takeover) {
