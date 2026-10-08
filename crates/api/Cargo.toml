@@ -1,26 +1,26 @@
 [package]
-name = "locus-cli"
+name = "locus-api"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-publish = ["perish"]
-description = "Readonly query and structural inspection for Locus Atom streams"
+publish = false
+description = "Faithful Atom recording and retrieval service for Locus"
 
 [[bin]]
-name = "locus"
+name = "locus-api"
 path = "src/main.rs"
 
 [dependencies]
+axum = { workspace = true }
 clap = { workspace = true }
 locus = { workspace = true }
 plumb = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-toml = { workspace = true }
-ureq = { workspace = true }
+tokio = { workspace = true }
+tokio-stream = { workspace = true }
+utoipa = { workspace = true }
 
 [dev-dependencies]
-locus-api = { workspace = true }
 sha2 = { workspace = true }
-tokio = { workspace = true }

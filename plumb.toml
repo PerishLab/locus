@@ -3,7 +3,7 @@
 [[layout.seat]]
 path = "crates/*"
 anchor = ["Cargo.toml"]
-note = "The locus library, its source adapters, and the query CLI."
+note = "The locus library, its source adapters, the query CLI, and the locus-api server."
 
 [[layout.seat]]
 path = ".cargo"

@@ -55,7 +55,8 @@ and engine diagnostic handoff.
   time mapping runs the span derivation, refuses the same crossings, and counts
   the refused spans in its summary; it groups by the entering record's own
   Context and never inherits a key from an enclosing frame.
-- CLI query consumes JSONL from stdin and selects one exact role with an
+- CLI query consumes JSONL from stdin, or the same stream from a `locus-api`
+  through `--api`, and selects one exact role with an
   optional exact key. It enumerates identities or replays matching logical
   Atoms, then reports complete coverage without inferring lifecycle, ownership,
   causality, or liveness.
@@ -69,6 +70,28 @@ and engine diagnostic handoff.
   because a dropped span always contains any span dropped inside it.
   Recovering the crossing itself would need a parent link the records do not
   carry, so it is never guessed.
+
+## Server
+
+- `locus-api` records faithfully and derives nothing. It keeps every Atom it
+  takes over verbatim and returns stored records byte for byte; query, span,
+  and inspection stay in the CLI, so `--api` and stdin derive identically.
+- Three interfaces are fixed; the internals behind them may change.
+  - Handoff: the server takes a product report file by renaming it beside
+    itself, reads taken files by offset in complete lines, and removes one only
+    after it has stayed idle past the grace period. Products are unchanged, and
+    a writer holding the old descriptor loses nothing within the grace. Lines
+    that are not Atoms are kept in `rejected/<producer>.jsonl`, never stored.
+  - Store: append a batch of one producer's records; read by time window
+    `[from, to)` with an optional exact role/key and producer; drop one whole
+    producer-day partition. Reads return stored order within a partition and
+    partitions in day, then producer, order.
+  - Read API: `GET /api/v1/atoms` streams stored records as JSONL.
+    `locus-api export-openapi` and its snapshot test own the HTTP contract; the
+    `--help` snapshots own both command surfaces.
+- Delivery is at least once: a crash between a store append and its offset
+  record re-reads those lines.
+- The server listens on loopback only and carries no authentication yet.
 
 ## Ownership
 
@@ -112,6 +135,7 @@ policy.
 - `crates/locus` is the engine and public substrate.
 - `crates/macro` is the source adapter and shares the exact release version.
 - `crates/cli` is the stdin-first structural inspector and exact Atom query.
+- `crates/api` is the `locus-api` server: takeover, store, and the read API.
 - `.runseal/hooks` carries the Plumb Guard Git hooks; `runseal.toml` is the Runseal profile.
 
 ## Operating
@@ -127,6 +151,7 @@ policy.
   binaries and no skill, so it has no target matrix, archive, manager or skill
   generation; its release authority carries the distribution record wharf
   keeps for every marker. The `locus` command reaches an operator through `locus-cli`.
+  `locus-api` is not published yet.
 - A release follows Plumb's lifecycle (`plumb release --help`); wharf
   publishes the crates in dependency order and reads each one back from the
   index. A rerun publishes only what is missing.
