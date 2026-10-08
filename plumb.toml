@@ -17,10 +17,6 @@ note = "Committed inert Runseal resources."
 name = ["Cargo.toml", "Cargo.lock"]
 note = "Rust workspace anchors."
 
-[[layout.file]]
-name = ["DESIGN.md"]
-note = "The law Locus implements, beside the implementation."
-
 [release]
 product = "locus"
 authority = "https://releases.locus.perish.uk"

@@ -13,9 +13,11 @@ and engine diagnostic handoff.
 
 - Observation is semantically transparent to the observed product. Removing
   Locus may remove evidence, but never business capability, state, output,
-  exit status, or control flow.
+  exit status, or control flow. Observation failures stay visible to the audit
+  operator and isolated from the observed command.
 - Context is an immutable view. A derived view may shadow one role while every
-  prior view keeps its meaning.
+  prior view keeps its meaning. Complete history is never propagated as
+  Context.
 - A requested role resolves in this order: explicit key, inherited context key,
   configured generator.
 - Only absence falls through. Invalid explicit, inherited, generated, or stored
@@ -28,8 +30,14 @@ and engine diagnostic handoff.
   append-only history of those records.
 - Shared-file generation publishes a complete key before it becomes visible;
   concurrent initializers converge without observing a partial stored value.
-- Trace and span are semantic roles over records, not lifecycle containers.
+- Trace and span are semantic roles over records. They imply no parenthood,
+  nesting, lifecycle, status, or duration.
+- Automatic tracing emits one entry and one normal-return record per traced
+  function declaration. Error returns are normal returns; panic, abort,
+  cancellation, process exit, and process loss leave the entry without an
+  invented terminal fact.
 - Reporting starts only after acceptance and cannot change accepted facts.
+  Reporter failure never rolls acceptance back.
 - Callers select Locus-owned reporters through config. They cannot invoke,
   inject, flush, retry, or drain reporter implementations.
 - Hooks observe immutable outcomes. Their return value cannot influence
@@ -41,8 +49,9 @@ and engine diagnostic handoff.
   engines and processes.
 - CLI inspection reads one root `locus.toml`, consumes JSONL from stdin, and
   composes Locus-owned mappings with product-declared thresholds. It emits only
-  domain-independent structural findings and an explicit coverage summary. It
-  never changes Atom acceptance or attributes a finding to a cause. The held
+  domain-independent structural findings and an explicit coverage summary.
+  Malformed declaration or input refuses without partial output. It never
+  changes Atom acceptance or attributes a finding to a cause. The held
   time mapping runs the span derivation, refuses the same crossings, and counts
   the refused spans in its summary; it groups by the entering record's own
   Context and never inherits a key from an enclosing frame.
@@ -58,6 +67,8 @@ and engine diagnostic handoff.
   the time the crossing reaches: every span meeting it is named and dropped,
   every span clear of it still derives. Scoping never widens what is claimed,
   because a dropped span always contains any span dropped inside it.
+  Recovering the crossing itself would need a parent link the records do not
+  carry, so it is never guessed.
 
 ## Ownership
 
@@ -101,7 +112,6 @@ policy.
 - `crates/locus` is the engine and public substrate.
 - `crates/macro` is the source adapter and shares the exact release version.
 - `crates/cli` is the stdin-first structural inspector and exact Atom query.
-- `DESIGN.md` is the current semantic doctrine for observation and identity.
 - `.runseal/hooks` carries the Plumb Guard Git hooks; `runseal.toml` is the Runseal profile.
 
 ## Operating
