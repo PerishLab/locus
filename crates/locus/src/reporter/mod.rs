@@ -1,3 +1,6 @@
+#[cfg(unix)]
+pub mod spool;
+
 use crate::{Atom, Error};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -25,6 +28,14 @@ impl Spec {
         Self::new("file", json!({"path": path.to_string_lossy()}))
     }
 
+    pub fn spool(path: impl Into<PathBuf>, ceiling: u64, segment: u64) -> Self {
+        let path = path.into();
+        Self::new(
+            "spool",
+            json!({"path": path.to_string_lossy(), "ceiling": ceiling, "segment": segment}),
+        )
+    }
+
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -35,7 +46,7 @@ impl Spec {
 }
 
 pub(crate) trait Report: Send + Sync {
-    fn report(&self, atom: &Atom) -> Result<(), String>;
+    fn report(&self, atom: &Atom) -> Result<Option<String>, String>;
 }
 
 type Factory = fn(&Value) -> Result<Box<dyn Report>, Error>;
@@ -72,6 +83,8 @@ pub(crate) fn build(spec: &Spec) -> Result<Box<dyn Report>, Error> {
 
 fn register(registry: &mut Registry) {
     registry.add("file", file);
+    #[cfg(unix)]
+    registry.add("spool", spool::build);
 }
 
 fn file(options: &Value) -> Result<Box<dyn Report>, Error> {
@@ -108,7 +121,7 @@ struct Jsonl {
 }
 
 impl Report for Jsonl {
-    fn report(&self, atom: &Atom) -> Result<(), String> {
+    fn report(&self, atom: &Atom) -> Result<Option<String>, String> {
         let mut record =
             serde_json::to_vec(atom).map_err(|error| format!("cannot encode Atom: {error}"))?;
         record.push(b'\n');
@@ -123,5 +136,6 @@ impl Report for Jsonl {
         appended
             .map_err(|error| format!("cannot append Atom: {error}"))
             .and_then(|_| unlocked.map_err(|error| format!("cannot unlock report file: {error}")))
+            .map(|_| None)
     }
 }

@@ -42,6 +42,13 @@ struct Serve {
     )]
     sources: Vec<Source>,
     #[arg(
+        long = "spool",
+        value_name = "PRODUCER=DIRECTORY",
+        value_parser = Source::new,
+        help = "Drain a product's Locus spool directory: PRODUCER=DIRECTORY (repeatable)"
+    )]
+    spools: Vec<Source>,
+    #[arg(
         long,
         value_name = "SECONDS",
         default_value_t = 600,
@@ -78,12 +85,9 @@ fn run(serve: Serve) -> Result<(), String> {
         return Err(format!("{} is not a loopback address", serve.listen));
     }
     let store: Arc<dyn Store> = Arc::new(Segments::open(serve.home.join("store"))?);
-    let takeover = Takeover::new(
-        serve.sources,
-        store.clone(),
-        Duration::from_secs(serve.grace),
-        serve.home.join("rejected"),
-    );
+    let takeover = Takeover::new(store.clone(), serve.home.join("rejected"))
+        .files(serve.sources, Duration::from_secs(serve.grace))
+        .spools(serve.spools);
     let interval = Duration::from_millis(serve.interval);
     thread::spawn(move || {
         loop {

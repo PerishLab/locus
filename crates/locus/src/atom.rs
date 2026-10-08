@@ -146,6 +146,10 @@ impl Source {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Atom {
     at: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    producer: Option<String>,
     context: BTreeMap<String, String>,
     choices: Vec<Choice>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -159,6 +163,14 @@ pub struct Atom {
 impl Atom {
     pub fn at(&self) -> u64 {
         self.at
+    }
+
+    pub fn id(&self) -> Option<&str> {
+        self.id.as_deref()
+    }
+
+    pub fn producer(&self) -> Option<&str> {
+        self.producer.as_deref()
     }
 
     pub fn context(&self) -> &BTreeMap<String, String> {
@@ -182,13 +194,15 @@ impl Atom {
     }
 
     pub(crate) fn new(
-        at: u64,
+        header: Header,
         context: &Context,
         choices: Vec<Choice>,
         candidate: Candidate,
     ) -> Self {
         Self {
-            at,
+            at: header.at,
+            id: Some(header.id),
+            producer: header.producer,
             context: context.snapshot(),
             choices,
             collections: candidate.provenance,
@@ -196,6 +210,12 @@ impl Atom {
             payload: candidate.payload,
         }
     }
+}
+
+pub(crate) struct Header {
+    pub(crate) at: u64,
+    pub(crate) id: String,
+    pub(crate) producer: Option<String>,
 }
 
 #[derive(Clone, Debug, Default)]

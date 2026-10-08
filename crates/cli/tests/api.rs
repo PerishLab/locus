@@ -144,12 +144,8 @@ fn launch() -> Served {
     let store: Arc<dyn Store> = Arc::new(Segments::open(home.path().join("store")).expect("store"));
     let source = Source::new(&format!("concord={}", report.display())).expect("source");
     let rejected = home.path().join("rejected");
-    let takeover = Takeover::new(
-        vec![source],
-        store.clone(),
-        Duration::from_secs(3_600),
-        rejected,
-    );
+    let takeover =
+        Takeover::new(store.clone(), rejected).files(vec![source], Duration::from_secs(3_600));
     takeover.cycle().expect("takeover");
     let (sender, receiver) = mpsc::channel();
     thread::spawn(move || {

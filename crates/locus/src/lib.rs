@@ -5,11 +5,13 @@ mod engine;
 mod error;
 pub mod generator;
 mod hook;
+mod policy;
 pub mod reporter;
 
 pub use atom::{Accepted, Atom, Candidate, Choice, Collection, Edge, Origin, Source};
 pub use context::{Context, Key, Role};
-pub use engine::{Config, Engine, Policy};
+pub use engine::Engine;
 pub use error::{Error, Kind};
 pub use hook::{Adaptor, Diagnostic, Hook, Observation, Outcome, Status};
 pub use locus_macro::{record, trace};
+pub use policy::{Config, Policy};
