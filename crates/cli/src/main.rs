@@ -1,11 +1,13 @@
 mod derive;
 mod input;
 mod inspect;
+mod origin;
 mod query;
 mod span;
 
 use clap::{Parser, Subcommand};
-use std::io::{self, BufReader, Write};
+use origin::Origin;
+use std::io::{self, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -21,23 +23,30 @@ enum Command {
     Inspect {
         #[arg(default_value = ".")]
         root: PathBuf,
+        #[command(flatten)]
+        origin: Origin,
     },
     Query {
         role: String,
         key: Option<String>,
+        #[command(flatten)]
+        origin: Origin,
     },
-    Span,
+    Span {
+        #[command(flatten)]
+        origin: Origin,
+    },
 }
 
 fn main() -> ExitCode {
     match Cli::parse().command {
-        Command::Inspect { root } => inspect(root),
-        Command::Query { role, key } => query(role, key),
-        Command::Span => span(),
+        Command::Inspect { root, origin } => inspect(root, &origin),
+        Command::Query { role, key, origin } => query(role, key, &origin),
+        Command::Span { origin } => span(&origin),
     }
 }
 
-fn inspect(root: PathBuf) -> ExitCode {
+fn inspect(root: PathBuf, origin: &Origin) -> ExitCode {
     let config = match inspect::Config::read(&root) {
         Ok(config) => config,
         Err(error) => {
@@ -45,8 +54,14 @@ fn inspect(root: PathBuf) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let input = io::stdin();
-    let report = match inspect::scan(BufReader::new(input.lock()), &config) {
+    let input = match origin.open() {
+        Ok(input) => input,
+        Err(error) => {
+            eprintln!("locus: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let report = match inspect::scan(input, &config) {
         Ok(report) => report,
         Err(error) => {
             eprintln!("locus: {error}");
@@ -70,7 +85,7 @@ fn inspect(root: PathBuf) -> ExitCode {
     }
 }
 
-fn query(role: String, key: Option<String>) -> ExitCode {
+fn query(role: String, key: Option<String>, origin: &Origin) -> ExitCode {
     let selector = match query::Selector::new(role, key) {
         Ok(selector) => selector,
         Err(error) => {
@@ -78,8 +93,14 @@ fn query(role: String, key: Option<String>) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let input = io::stdin();
-    let report = match query::scan(BufReader::new(input.lock()), selector) {
+    let input = match origin.open() {
+        Ok(input) => input,
+        Err(error) => {
+            eprintln!("locus: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let report = match query::scan(input, selector) {
         Ok(report) => report,
         Err(error) => {
             eprintln!("locus: {error}");
@@ -99,9 +120,15 @@ fn query(role: String, key: Option<String>) -> ExitCode {
     ExitCode::SUCCESS
 }
 
-fn span() -> ExitCode {
-    let input = io::stdin();
-    let report = match span::scan(BufReader::new(input.lock())) {
+fn span(origin: &Origin) -> ExitCode {
+    let input = match origin.open() {
+        Ok(input) => input,
+        Err(error) => {
+            eprintln!("locus: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    let report = match span::scan(input) {
         Ok(report) => report,
         Err(error) => {
             eprintln!("locus: {error}");

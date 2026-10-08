@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/cli", "crates/locus", "crates/macro"]
+members = ["crates/api", "crates/cli", "crates/locus", "crates/macro"]
 
 [workspace.package]
 version = "0.0.0"
@@ -9,14 +9,21 @@ license = "MIT"
 repository = "https://github.com/PerishLab/locus"
 
 [workspace.dependencies]
+axum = "0.8"
 clap = { version = "4", features = ["derive"] }
 getrandom = "0.3"
 locus = { path = "crates/locus", version = "=0.0.0", registry = "perish" }
+locus-api = { path = "crates/api" }
 locus-macro = { path = "crates/macro", version = "=0.0.0", registry = "perish" }
 plumb = { version = "0", registry = "perish" }
 proc-macro2 = "1"
 quote = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
 syn = { version = "2", features = ["full"] }
+tokio = { version = "1", features = ["macros", "net", "rt-multi-thread", "signal", "sync"] }
+tokio-stream = "0.1"
 toml = "0.9"
+ureq = "3"
+utoipa = { version = "5", features = ["axum_extras"] }
