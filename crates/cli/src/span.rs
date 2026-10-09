@@ -1,4 +1,4 @@
-use crate::derive::{Derived, Ledger, SCHEMA, Tangle, Unclosed};
+use crate::derive::{Derived, Ledger, Orphan, SCHEMA, Tangle};
 use crate::input;
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -33,7 +33,8 @@ impl Report {
                 })
             })
             .collect();
-        records.extend(self.derived.unclosed.iter().map(Record::Unclosed));
+        records.extend(self.derived.unclosed.iter().map(Record::Orphan));
+        records.extend(self.derived.headless.iter().map(Record::Orphan));
         records.extend(self.derived.tangles.iter().map(Record::Tangle));
         records.push(Record::Summary(Summary {
             schema: SCHEMA,
@@ -42,6 +43,7 @@ impl Report {
             matched: self.derived.matched,
             declarations: self.declarations.len(),
             unclosed: self.derived.unclosed.len(),
+            headless: self.derived.headless.len(),
             tangled: self.derived.tangles.len(),
             refused: self.derived.tangles.iter().map(|tangle| tangle.spans).sum(),
         }));
@@ -81,7 +83,7 @@ pub struct Declaration<'a> {
 #[serde(untagged)]
 pub enum Record<'a> {
     Declaration(Declaration<'a>),
-    Unclosed(&'a Unclosed),
+    Orphan(&'a Orphan),
     Tangle(&'a Tangle),
     Summary(Summary),
 }
@@ -94,6 +96,7 @@ pub struct Summary {
     matched: u64,
     declarations: usize,
     unclosed: usize,
+    headless: usize,
     tangled: usize,
     refused: u64,
 }

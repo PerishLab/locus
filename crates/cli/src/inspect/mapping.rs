@@ -1,6 +1,7 @@
 use super::model::{Group, Measurement};
 use crate::derive::Ledger;
 use locus::{Atom, Edge, Role};
+use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
 
@@ -21,7 +22,20 @@ pub struct Observation {
 
 pub(super) struct Reading {
     pub observations: Vec<Observation>,
-    pub refused: u64,
+    pub unmeasured: Unmeasured,
+}
+
+#[derive(Clone, Copy, Default, Serialize)]
+pub struct Unmeasured {
+    refused: u64,
+    headless: u64,
+}
+
+impl Unmeasured {
+    pub fn absorb(&mut self, other: Self) {
+        self.refused += other.refused;
+        self.headless += other.headless;
+    }
 }
 
 pub(super) enum State {
@@ -93,7 +107,7 @@ impl State {
     }
 
     pub fn finish(self) -> Reading {
-        let mut refused = 0;
+        let mut unmeasured = Unmeasured::default();
         let observations = match self {
             Self::Bytes { role, groups } => groups
                 .into_iter()
@@ -113,7 +127,10 @@ impl State {
                 .collect(),
             Self::Held { role, ledger } => {
                 let derived = ledger.finish();
-                refused = derived.tangles.iter().map(|tangle| tangle.spans).sum();
+                unmeasured = Unmeasured {
+                    refused: derived.tangles.iter().map(|tangle| tangle.spans).sum(),
+                    headless: derived.headless.len() as u64,
+                };
                 let mut groups: BTreeMap<String, Span> = BTreeMap::new();
                 for held in derived.held {
                     let Some(key) = held.group else {
@@ -139,7 +156,7 @@ impl State {
         };
         Reading {
             observations,
-            refused,
+            unmeasured,
         }
     }
 }

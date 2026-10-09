@@ -5,7 +5,7 @@ mod model;
 use crate::input;
 use config::Analyzer;
 pub use config::Config;
-use mapping::State;
+use mapping::{State, Unmeasured};
 use model::{Finding, Record, Summary};
 use std::io::BufRead;
 
@@ -40,7 +40,7 @@ impl<'a> Runtime<'a> {
         }
     }
 
-    fn findings(self) -> (Vec<Finding>, u64) {
+    fn findings(self) -> (Vec<Finding>, Unmeasured) {
         let reading = self.state.finish();
         let findings = reading
             .observations
@@ -48,7 +48,7 @@ impl<'a> Runtime<'a> {
             .filter(|observation| self.analyzer.threshold.exceeded(&observation.measurement))
             .map(|observation| Finding::new(self.analyzer, observation))
             .collect();
-        (findings, reading.refused)
+        (findings, reading.unmeasured)
     }
 }
 
@@ -65,13 +65,13 @@ pub fn scan(reader: impl BufRead, config: &Config) -> Result<Report, String> {
         Ok(())
     })?;
     let mut findings = Vec::new();
-    let mut refused = 0_u64;
+    let mut unmeasured = Unmeasured::default();
     for runtime in runtimes {
         let (found, dropped) = runtime.findings();
         findings.extend(found);
-        refused += dropped;
+        unmeasured.absorb(dropped);
     }
     findings.sort_by(|left, right| left.identity().cmp(&right.identity()));
-    let summary = Summary::new(config.coverage(), records, findings.len(), refused);
+    let summary = Summary::new(config.coverage(), records, findings.len(), unmeasured);
     Ok(Report { findings, summary })
 }

@@ -99,6 +99,15 @@ and engine diagnostic handoff.
   because a dropped span always contains any span dropped inside it.
   Recovering the crossing itself would need a parent link the records do not
   carry, so it is never guessed.
+- A return whose entry is not in the stream is named `headless` and counted,
+  never measured and never refused as a whole input. The read window and the
+  spool's designed loss both produce one, and neither side knows where a shed
+  gap lies, so its cause is never attributed. Its interval runs from the head
+  of the stream to its return, ahead of any complete span starting there: a
+  complete span in the same trace that strictly contains the return cannot be
+  judged nested or crossing and is refused under the scoped rule, while spans
+  that end by the return still derive. The held time mapping follows the same
+  rule and counts headless returns in its summary.
 
 ## Server
 
