@@ -4,6 +4,7 @@ mod fixture;
 use fixture::{CONFIG, Root, TIMED};
 use locus::reporter;
 use locus::{Candidate, Config, Context, Engine, Policy, Role};
+use locus_api::registry::Registry;
 use locus_api::server;
 use locus_api::store::{Segments, Store};
 use locus_api::takeover::{Source, Takeover};
@@ -147,6 +148,7 @@ fn launch() -> Served {
     let takeover =
         Takeover::new(store.clone(), rejected).files(vec![source], Duration::from_secs(3_600));
     takeover.cycle().expect("takeover");
+    let registry = Arc::new(Registry::open(home.path().join("spools.json")).expect("registry"));
     let (sender, receiver) = mpsc::channel();
     thread::spawn(move || {
         let _home = home;
@@ -158,7 +160,7 @@ fn launch() -> Served {
             sender
                 .send(listener.local_addr().expect("address"))
                 .expect("send");
-            server::serve(listener, store, std::future::pending())
+            server::serve(listener, store, registry, std::future::pending())
                 .await
                 .expect("serve");
         });

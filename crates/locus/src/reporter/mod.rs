@@ -1,4 +1,7 @@
+mod api;
 pub mod spool;
+
+pub(crate) use api::{Target, enroll};
 
 use crate::{Atom, Error};
 use serde::{Deserialize, Serialize};
@@ -35,6 +38,14 @@ impl Spec {
         )
     }
 
+    pub fn api(endpoint: impl Into<String>, path: impl Into<PathBuf>) -> Self {
+        let path = path.into();
+        Self::new(
+            "api",
+            json!({"endpoint": endpoint.into(), "path": path.to_string_lossy()}),
+        )
+    }
+
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -46,6 +57,10 @@ impl Spec {
 
 pub(crate) trait Report: Send + Sync {
     fn report(&self, atom: &Atom) -> Result<Option<String>, String>;
+
+    fn target(&self) -> Option<Target> {
+        None
+    }
 }
 
 type Factory = fn(&Value) -> Result<Box<dyn Report>, Error>;
@@ -83,6 +98,7 @@ pub(crate) fn build(spec: &Spec) -> Result<Box<dyn Report>, Error> {
 fn register(registry: &mut Registry) {
     registry.add("file", file);
     registry.add("spool", spool::build);
+    registry.add("api", api::build);
 }
 
 fn file(options: &Value) -> Result<Box<dyn Report>, Error> {

@@ -1,14 +1,16 @@
+use crate::registry::Registry;
 use crate::store::{Filter, Producer, Store, Window};
 use axum::body::{Body, Bytes};
 use axum::extract::{Query, State};
 use axum::http::{StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use locus::{Key, Role};
 use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::io;
+use std::path::Path;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
@@ -31,6 +33,18 @@ pub struct Fault {
 pub struct Detail {
     code: &'static str,
     message: String,
+}
+
+#[derive(Deserialize, ToSchema)]
+pub struct Enrollment {
+    producer: String,
+    path: String,
+}
+
+#[derive(Clone)]
+struct Shared {
+    store: Arc<dyn Store>,
+    registry: Arc<Registry>,
 }
 
 #[derive(Deserialize, IntoParams)]
@@ -75,8 +89,8 @@ impl Params {
         title = "locus-api",
         description = "Faithful Atom recording and retrieval"
     ),
-    paths(health, atoms),
-    components(schemas(Health, Fault, Detail))
+    paths(health, atoms, spools),
+    components(schemas(Health, Fault, Detail, Enrollment))
 )]
 pub struct Document;
 
@@ -89,19 +103,21 @@ pub fn document() -> String {
 pub async fn serve(
     listener: TcpListener,
     store: Arc<dyn Store>,
+    registry: Arc<Registry>,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> io::Result<()> {
-    axum::serve(listener, router(store))
+    axum::serve(listener, router(Shared { store, registry }))
         .with_graceful_shutdown(shutdown)
         .await
 }
 
-fn router(store: Arc<dyn Store>) -> Router {
+fn router(shared: Shared) -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/api/v1/atoms", get(atoms))
+        .route("/api/v1/spools", post(spools))
         .fallback(missing)
-        .with_state(store)
+        .with_state(shared)
 }
 
 #[utoipa::path(get, path = "/health", responses((status = 200, body = Health)))]
@@ -118,7 +134,8 @@ async fn health() -> Json<Health> {
         (status = 400, body = Fault)
     )
 )]
-async fn atoms(State(store): State<Arc<dyn Store>>, Query(params): Query<Params>) -> Response {
+async fn atoms(State(shared): State<Shared>, Query(params): Query<Params>) -> Response {
+    let store = shared.store;
     let filter = match params.filter() {
         Ok(filter) => filter,
         Err(message) => return fault(StatusCode::BAD_REQUEST, "request.invalid", message),
@@ -148,6 +165,25 @@ async fn atoms(State(store): State<Arc<dyn Store>>, Query(params): Query<Params>
         Body::from_stream(ReceiverStream::new(receiver)),
     )
         .into_response()
+}
+
+#[utoipa::path(
+    post,
+    path = "/api/v1/spools",
+    request_body = Enrollment,
+    responses(
+        (status = 204, description = "The spool is registered and will be drained"),
+        (status = 400, body = Fault)
+    )
+)]
+async fn spools(State(shared): State<Shared>, Json(enrollment): Json<Enrollment>) -> Response {
+    match shared
+        .registry
+        .enroll(&enrollment.producer, Path::new(&enrollment.path))
+    {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(message) => fault(StatusCode::BAD_REQUEST, "spool.invalid", message),
+    }
 }
 
 async fn missing() -> Response {

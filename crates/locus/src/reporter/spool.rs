@@ -5,7 +5,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const ACTIVE: &str = "active.jsonl";
 const LEDGER: &str = "loss.jsonl";
@@ -80,22 +80,28 @@ pub(super) fn build(options: &Value) -> Result<Box<dyn Report>, Error> {
     if segment > ceiling {
         return Err(Error::config("spool segment exceeds its ceiling"));
     }
+    Ok(Box::new(open(directory, ceiling, segment)?))
+}
+
+pub(super) fn open(directory: &str, ceiling: u64, segment: u64) -> Result<Spool, Error> {
     let root = Root(PathBuf::from(directory));
     root.create()
         .map_err(|error| Error::reporter(format!("cannot create spool {directory}: {error}")))?;
     let lock = root.open(LOCK, false).map_err(Error::reporter)?;
-    Ok(Box::new(Spool {
+    Ok(Spool {
         root,
         ceiling,
         segment,
+        age: None,
         lock: Mutex::new(lock),
-    }))
+    })
 }
 
-struct Spool {
+pub(super) struct Spool {
     root: Root,
     ceiling: u64,
     segment: u64,
+    age: Option<Duration>,
     lock: Mutex<File>,
 }
 
@@ -119,20 +125,38 @@ impl Report for Spool {
 }
 
 impl Spool {
+    pub(super) fn aged(mut self, age: Duration) -> Self {
+        self.age = Some(age);
+        self
+    }
+
+    pub(super) fn directory(&self) -> &Path {
+        &self.root.0
+    }
+
     fn append(&self, lock: &File, record: &[u8]) -> Result<Option<String>, String> {
         let mut active = self.root.open(ACTIVE, true)?;
         active
             .write_all(record)
             .and_then(|_| active.flush())
             .map_err(|error| format!("cannot append Atom: {error}"))?;
-        let size = active.metadata().map_err(|error| error.to_string())?.len();
+        let metadata = active.metadata().map_err(|error| error.to_string())?;
+        let size = metadata.len();
+        let stale = self.age.is_some_and(|age| {
+            metadata
+                .created()
+                .ok()
+                .and_then(|created| created.elapsed().ok())
+                .is_some_and(|elapsed| elapsed >= age)
+        });
         drop(active);
-        let mut sealed = match counted(lock)? {
+        let known = counted(lock)?;
+        let mut sealed = match known {
             Some(sealed) => sealed,
             None => self.root.total()?,
         };
         let mut held = size;
-        if size >= self.segment {
+        if size >= self.segment || stale {
             fs::rename(self.root.0.join(ACTIVE), self.root.stamped())
                 .map_err(|error| format!("cannot seal spool segment: {error}"))?;
             sealed += size;
@@ -143,7 +167,9 @@ impl Spool {
             sealed = self.root.total()?;
             (loss, sealed) = self.shed(held, sealed)?;
         }
-        count(lock, sealed)?;
+        if known != Some(sealed) {
+            count(lock, sealed)?;
+        }
         Ok(loss)
     }
 

@@ -1,4 +1,5 @@
 use clap::{Args, Parser, Subcommand};
+use locus_api::registry::Registry;
 use locus_api::server;
 use locus_api::store::{Segments, Store};
 use locus_api::takeover::{Source, Takeover};
@@ -85,7 +86,9 @@ fn run(serve: Serve) -> Result<(), String> {
         return Err(format!("{} is not a loopback address", serve.listen));
     }
     let store: Arc<dyn Store> = Arc::new(Segments::open(serve.home.join("store"))?);
+    let registry = Arc::new(Registry::open(serve.home.join("spools.json"))?);
     let takeover = Takeover::new(store.clone(), serve.home.join("rejected"))
+        .registry(registry.clone())
         .files(serve.sources, Duration::from_secs(serve.grace))
         .spools(serve.spools);
     let interval = Duration::from_millis(serve.interval);
@@ -105,7 +108,7 @@ fn run(serve: Serve) -> Result<(), String> {
         let shutdown = async {
             let _ = tokio::signal::ctrl_c().await;
         };
-        server::serve(listener, store, shutdown)
+        server::serve(listener, store, registry, shutdown)
             .await
             .map_err(|error| error.to_string())
     })
