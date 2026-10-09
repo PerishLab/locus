@@ -57,6 +57,17 @@ impl Engine {
         if let Some(producer) = &policy.producer {
             crate::policy::admit(producer)?;
         }
+        let target = reporter
+            .as_ref()
+            .and_then(|(_, reporter)| reporter.target());
+        if let Some(Err(error)) =
+            target.map(|target| reporter::enroll(&target, policy.producer.as_deref()))
+        {
+            handoff(
+                hook.as_ref(),
+                Observation::Diagnostic(Diagnostic::new("reporter.registration", error)),
+            );
+        }
         Ok(Self {
             producer: policy.producer.clone(),
             instance: instance()?,

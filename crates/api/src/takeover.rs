@@ -1,3 +1,4 @@
+use crate::registry::Registry;
 use crate::store::{Producer, Record, Store};
 use locus::reporter::spool;
 use std::fs::{self, File, OpenOptions};
@@ -87,6 +88,7 @@ pub struct Takeover {
     files: Vec<Source>,
     grace: Duration,
     spools: Vec<Source>,
+    registry: Option<Arc<Registry>>,
 }
 
 impl Takeover {
@@ -97,6 +99,7 @@ impl Takeover {
             files: Vec::new(),
             grace: Duration::ZERO,
             spools: Vec::new(),
+            registry: None,
         }
     }
 
@@ -111,6 +114,11 @@ impl Takeover {
         self
     }
 
+    pub fn registry(mut self, registry: Arc<Registry>) -> Self {
+        self.registry = Some(registry);
+        self
+    }
+
     pub fn cycle(&self) -> Result<(), String> {
         for source in &self.files {
             source.take()?;
@@ -118,7 +126,12 @@ impl Takeover {
                 self.drain(source, &path)?;
             }
         }
-        for source in &self.spools {
+        let registered = self
+            .registry
+            .as_ref()
+            .map(|registry| registry.sources())
+            .unwrap_or_default();
+        for source in self.spools.iter().chain(&registered) {
             let claimed = spool::claim(&source.path)
                 .map_err(|error| format!("cannot claim {}: {error}", source.path.display()))?;
             for path in claimed {

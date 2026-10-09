@@ -58,6 +58,13 @@ and engine diagnostic handoff.
   claimed segment, so a consumer never blocks the observed product. A consumer
   claims sealed segments by renaming them to `claimed-*`, then stores and
   removes them; writers never touch a claimed segment.
+- The `api` reporter is how a product reports to `locus-api`: it declares only
+  an endpoint and a buffer directory. Locus buffers through the spool contract
+  under bounds it owns, sealing a segment by size or once it is a minute old so
+  short-lived products become visible, and registers the buffer with the
+  endpoint when the engine is built. Registration never blocks or fails the
+  product: a buffer that has registered before stays silent while the server is
+  down, and one never registered reports `reporter.registration` to the hook.
 - The product-declared spool ceiling bounds active, sealed, and claimed bytes
   and is only a safety valve. Past it, the oldest unclaimed sealed segments are
   deleted, their records counted in `loss.jsonl`, and the loss reported to the
@@ -99,7 +106,10 @@ and engine diagnostic handoff.
   takes over verbatim and returns stored records byte for byte; query, span,
   and inspection stay in the CLI, so `--api` and stdin derive identically.
 - Three interfaces are fixed; the internals behind them may change.
-  - Handoff: a product's spool is drained by claiming its sealed segments,
+  - Handoff: a product's buffer registers itself through
+    `POST /api/v1/spools` (a directory holding `spool.lock`), and the server
+    persists registrations in `spools.json` under its home. A registered or
+    `--spool` buffer is drained by claiming its sealed segments,
     storing them, and removing them. A product still on the file reporter is
     taken over by renaming its report file beside itself, reading taken files
     by offset in complete lines, and removing one only after it has stayed idle
@@ -121,11 +131,14 @@ and engine diagnostic handoff.
 ## Ownership
 
 Locus owns Context and Atom laws, collector and generator algorithms, reporter
-execution, config gates, hooks, diagnostic handoff, inspect mappings, query
-selection, and threshold mechanics. Products own collector selection and
-binding, their event vocabulary, logical cycles, analyzer identities and
-thresholds, endpoints and credentials, retention choices, and consumption
-policy.
+execution and buffer bounds, config gates, hooks, diagnostic handoff, inspect
+mappings, query selection, and threshold mechanics. Products own collector
+selection and binding, their event vocabulary, logical cycles, analyzer
+identities and thresholds, the endpoint they report to and the buffer
+directory under their own state, and consumption policy. `locus-api` owns
+where records go and how long they stay. Locus is a library: it reads neither
+configuration files nor the environment; a product reads its own standard
+configuration file and hands the result to `Policy`.
 
 ## Feedback
 
