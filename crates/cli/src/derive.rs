@@ -11,6 +11,7 @@ pub struct Interval {
     pub group: Option<String>,
     pub at: u64,
     pub until: u64,
+    headless: bool,
 }
 
 pub struct Held {
@@ -25,12 +26,15 @@ pub struct Ledger {
     group: Option<Role>,
     open: BTreeMap<String, Frame>,
     traces: BTreeMap<String, Vec<Interval>>,
+    headless: Vec<Frame>,
+    head: Option<u64>,
     matched: u64,
 }
 
 pub struct Derived {
     pub held: Vec<Held>,
-    pub unclosed: Vec<Unclosed>,
+    pub unclosed: Vec<Orphan>,
+    pub headless: Vec<Orphan>,
     pub tangles: Vec<Tangle>,
     pub matched: u64,
 }
@@ -51,20 +55,49 @@ impl Ledger {
             .matched
             .checked_add(1)
             .ok_or_else(|| "matched Atom count overflowed".to_string())?;
+        self.head = Some(self.head.map_or(frame.at, |head| head.min(frame.at)));
         match frame.edge {
             Edge::Enter => entered(&mut self.open, frame),
-            Edge::Return => returned(&mut self.open, &mut self.traces, frame),
+            Edge::Return => match self.open.remove(&frame.span) {
+                Some(entered) => returned(&mut self.traces, entered, frame),
+                None => {
+                    self.headless.push(frame);
+                    Ok(())
+                }
+            },
         }
     }
 
     pub fn finish(mut self) -> Derived {
         let mut held = Vec::new();
         let mut tangles = Vec::new();
+        let head = self.head.unwrap_or_default();
+        for frame in &self.headless {
+            self.traces
+                .entry(frame.trace.clone())
+                .or_default()
+                .push(Interval {
+                    declaration: frame.declaration.clone(),
+                    group: frame.group.clone(),
+                    at: head,
+                    until: frame.at,
+                    headless: true,
+                });
+        }
         for (trace, intervals) in self.traces.iter_mut() {
-            intervals.sort_by_key(|interval| (interval.at, std::cmp::Reverse(interval.until)));
+            intervals.sort_by_key(|interval| {
+                (
+                    interval.at,
+                    !interval.headless,
+                    std::cmp::Reverse(interval.until),
+                )
+            });
             let reaches = reach::tangled(intervals);
             let mut refused: BTreeMap<usize, Tangle> = BTreeMap::new();
             for (index, interval) in intervals.iter().enumerate() {
+                if interval.headless {
+                    continue;
+                }
                 if let Some(at) = reach::struck(&reaches, interval) {
                     refused
                         .entry(at)
@@ -84,7 +117,8 @@ impl Ledger {
         }
         Derived {
             held,
-            unclosed: self.open.into_values().map(Unclosed::name).collect(),
+            unclosed: self.open.into_values().map(Orphan::unclosed).collect(),
+            headless: self.headless.into_iter().map(Orphan::headless).collect(),
             tangles,
             matched: self.matched,
         }
@@ -133,13 +167,10 @@ fn entered(open: &mut BTreeMap<String, Frame>, frame: Frame) -> Result<(), Strin
 }
 
 fn returned(
-    open: &mut BTreeMap<String, Frame>,
     traces: &mut BTreeMap<String, Vec<Interval>>,
+    entered: Frame,
     frame: Frame,
 ) -> Result<(), String> {
-    let Some(entered) = open.remove(&frame.span) else {
-        return Err(format!("span {} returns without entering", frame.span));
-    };
     if entered.declaration != frame.declaration {
         return Err(format!(
             "span {} returns from another declaration",
@@ -154,6 +185,7 @@ fn returned(
         group: entered.group,
         at: entered.at,
         until: frame.at,
+        headless: false,
     });
     Ok(())
 }
@@ -176,7 +208,7 @@ fn covered(intervals: &[Interval], index: usize) -> u128 {
 }
 
 #[derive(Serialize)]
-pub struct Unclosed {
+pub struct Orphan {
     schema: &'static str,
     kind: &'static str,
     declaration: String,
@@ -186,11 +218,19 @@ pub struct Unclosed {
     at: u64,
 }
 
-impl Unclosed {
-    fn name(frame: Frame) -> Self {
+impl Orphan {
+    fn unclosed(frame: Frame) -> Self {
+        Self::name("unclosed", frame)
+    }
+
+    fn headless(frame: Frame) -> Self {
+        Self::name("headless", frame)
+    }
+
+    fn name(kind: &'static str, frame: Frame) -> Self {
         Self {
             schema: SCHEMA,
-            kind: "unclosed",
+            kind,
             declaration: frame.declaration,
             file: frame.file,
             trace: frame.trace,

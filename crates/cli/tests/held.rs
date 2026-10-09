@@ -58,3 +58,21 @@ fn refused() {
     assert_eq!(records[0]["measurement"]["spans"], 1);
     assert_eq!(records[1]["refused"], 2);
 }
+
+#[test]
+fn headless() {
+    let root = Root::new(Some(TIMED));
+    let input = [
+        framed(5, "inner", "enter"),
+        framed(15, "inner", "return"),
+        framed(20, "outer", "return"),
+    ]
+    .join("\n");
+    let output = run(&root, &input);
+    let records = records(&output);
+    let summary = records.last().expect("summary");
+    assert_eq!(summary["headless"], 1);
+    assert_eq!(summary["refused"], 0);
+    assert_eq!(records[0]["measurement"]["value"], 10);
+    assert_eq!(records[0]["measurement"]["spans"], 1);
+}

@@ -1,5 +1,5 @@
 use super::config::Analyzer;
-use super::mapping::Observation;
+use super::mapping::{Observation, Unmeasured};
 use locus::Role;
 use serde::{Deserialize, Serialize};
 
@@ -92,18 +92,24 @@ pub struct Summary {
     coverage: Vec<String>,
     records: u64,
     findings: usize,
-    refused: u64,
+    #[serde(flatten)]
+    unmeasured: Unmeasured,
 }
 
 impl Summary {
-    pub fn new(coverage: Vec<String>, records: u64, findings: usize, refused: u64) -> Self {
+    pub fn new(
+        coverage: Vec<String>,
+        records: u64,
+        findings: usize,
+        unmeasured: Unmeasured,
+    ) -> Self {
         Self {
             schema: SCHEMA,
             kind: "summary",
             coverage,
             records,
             findings,
-            refused,
+            unmeasured,
         }
     }
 }

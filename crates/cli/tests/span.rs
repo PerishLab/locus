@@ -142,8 +142,81 @@ fn unclosed() {
 #[test]
 fn stray() {
     let output = run(&atom(0, "a", "return", "ghost"));
+    assert!(output.status.success());
+    let records = records(&output);
+    let headless = records.first().expect("headless");
+    assert_eq!(headless["kind"], "headless");
+    assert_eq!(headless["declaration"], "m::ghost");
+    assert_eq!(headless["span"], "a");
+    assert_eq!(headless["at"], 0);
+    let summary = records.last().expect("summary");
+    assert_eq!(summary["headless"], 1);
+    assert_eq!(summary["declarations"], 0);
+}
+
+#[test]
+fn truncated() {
+    let input = [
+        atom(10, "b", "enter", "inner"),
+        atom(20, "b", "return", "inner"),
+        atom(30, "a", "return", "outer"),
+        atom(100, "c", "enter", "clean"),
+        atom(130, "c", "return", "clean"),
+    ]
+    .join("\n");
+    let output = run(&input);
+    assert!(output.status.success());
+    let records = records(&output);
+    let inner = records
+        .iter()
+        .find(|record| record["declaration"] == "m::inner" && record["kind"] == "declaration")
+        .expect("inner");
+    assert_eq!(inner["held"], 10);
+    assert!(
+        records
+            .iter()
+            .any(|record| record["declaration"] == "m::clean" && record["held"] == 30)
+    );
+    let summary = records.last().expect("summary");
+    assert_eq!(summary["headless"], 1);
+    assert_eq!(summary["declarations"], 2);
+    assert_eq!(summary["tangled"], 0);
+}
+
+#[test]
+fn straddled() {
+    let input = [
+        atom(10, "x", "enter", "open"),
+        atom(20, "h", "return", "cut"),
+        atom(30, "x", "return", "open"),
+    ]
+    .join("\n");
+    let output = run(&input);
+    assert!(output.status.success());
+    let records = records(&output);
+    assert!(
+        !records.iter().any(|record| record["kind"] == "declaration"),
+        "a span containing a headless return is never measured"
+    );
+    let summary = records.last().expect("summary");
+    assert_eq!(summary["headless"], 1);
+    assert_eq!(summary["tangled"], 1);
+    assert_eq!(summary["refused"], 1);
+}
+
+#[test]
+fn misreturned() {
+    let input = [
+        atom(0, "a", "enter", "outer"),
+        atom(10, "a", "return", "other"),
+    ]
+    .join("\n");
+    let output = run(&input);
     assert!(!output.status.success());
     assert!(output.stdout.is_empty());
     let message = String::from_utf8_lossy(&output.stderr);
-    assert!(message.contains("returns without entering"), "{message}");
+    assert!(
+        message.contains("returns from another declaration"),
+        "{message}"
+    );
 }
