@@ -94,6 +94,8 @@ pub struct Summary {
     findings: usize,
     #[serde(flatten)]
     unmeasured: Unmeasured,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    retained: Option<u64>,
 }
 
 impl Summary {
@@ -110,7 +112,12 @@ impl Summary {
             records,
             findings,
             unmeasured,
+            retained: None,
         }
+    }
+
+    pub fn retain(&mut self, retained: Option<u64>) {
+        self.retained = retained;
     }
 }
 

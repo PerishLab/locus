@@ -61,13 +61,14 @@ fn inspect(root: PathBuf, origin: &Origin) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let report = match inspect::scan(input, &config) {
-        Ok(report) => report,
-        Err(error) => {
-            eprintln!("locus: {error}");
-            return ExitCode::from(2);
-        }
-    };
+    let report =
+        match inspect::scan(input.reader, &config).map(|report| report.retained(input.retained)) {
+            Ok(report) => report,
+            Err(error) => {
+                eprintln!("locus: {error}");
+                return ExitCode::from(2);
+            }
+        };
     let output = io::stdout();
     let mut output = output.lock();
     for record in report.records() {
@@ -100,13 +101,14 @@ fn query(role: String, key: Option<String>, origin: &Origin) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let report = match query::scan(input, selector) {
-        Ok(report) => report,
-        Err(error) => {
-            eprintln!("locus: {error}");
-            return ExitCode::from(2);
-        }
-    };
+    let report =
+        match query::scan(input.reader, selector).map(|report| report.retained(input.retained)) {
+            Ok(report) => report,
+            Err(error) => {
+                eprintln!("locus: {error}");
+                return ExitCode::from(2);
+            }
+        };
     let output = io::stdout();
     let mut output = output.lock();
     for record in report.records() {
@@ -128,7 +130,7 @@ fn span(origin: &Origin) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let report = match span::scan(input) {
+    let report = match span::scan(input.reader).map(|report| report.retained(input.retained)) {
         Ok(report) => report,
         Err(error) => {
             eprintln!("locus: {error}");

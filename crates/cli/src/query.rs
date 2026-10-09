@@ -33,9 +33,15 @@ pub struct Report {
     projection: Projection,
     records: u64,
     matched: u64,
+    retained: Option<u64>,
 }
 
 impl Report {
+    pub fn retained(mut self, retained: Option<u64>) -> Self {
+        self.retained = retained;
+        self
+    }
+
     pub fn records(&self) -> Vec<Record<'_>> {
         let mut records: Vec<Record<'_>> = match &self.projection {
             Projection::Identities(identities) => identities
@@ -71,6 +77,7 @@ impl Report {
             records: self.records,
             matched: self.matched,
             identities: self.identities(),
+            retained: self.retained,
         }));
         records
     }
@@ -120,6 +127,7 @@ pub fn scan(reader: impl BufRead, selector: Selector) -> Result<Report, String> 
         projection,
         records,
         matched,
+        retained: None,
     })
 }
 
@@ -151,6 +159,8 @@ pub struct Summary<'a> {
     records: u64,
     matched: u64,
     identities: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    retained: Option<u64>,
 }
 
 #[derive(Serialize)]

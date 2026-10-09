@@ -1,8 +1,9 @@
 use crate::registry::Registry;
+use crate::retention::{self, Retention};
 use crate::store::{Filter, Producer, Store, Window};
 use axum::body::{Body, Bytes};
 use axum::extract::{Query, State};
-use axum::http::{StatusCode, header};
+use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -15,9 +16,10 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-use utoipa::{IntoParams, OpenApi, ToSchema};
+use utoipa::{IntoParams, IntoResponses, OpenApi, ToSchema};
 
 const CHUNK: usize = 64 * 1024;
+pub const RETAINED: &str = "locus-retained-from";
 
 #[derive(Serialize, ToSchema)]
 pub struct Health {
@@ -42,9 +44,38 @@ pub struct Enrollment {
 }
 
 #[derive(Clone)]
-struct Shared {
+pub struct Shared {
     store: Arc<dyn Store>,
     registry: Arc<Registry>,
+    retention: Retention,
+}
+
+impl Shared {
+    pub fn new(store: Arc<dyn Store>, registry: Arc<Registry>, retention: Retention) -> Self {
+        Self {
+            store,
+            registry,
+            retention,
+        }
+    }
+}
+
+#[derive(IntoResponses)]
+pub enum Stream {
+    #[response(
+        status = 200,
+        content_type = "application/x-ndjson",
+        description = "Stored Atoms in the window, verbatim, one per line",
+        headers(
+            ("locus-retained-from" = u64, description = "With a declared retention, the instant (ns since epoch) before which history is not retained")
+        )
+    )]
+    Stored,
+    #[response(
+        status = 400,
+        description = "The window, selector or producer is invalid"
+    )]
+    Invalid(#[to_schema] Fault),
 }
 
 #[derive(Deserialize, IntoParams)]
@@ -102,11 +133,10 @@ pub fn document() -> String {
 
 pub async fn serve(
     listener: TcpListener,
-    store: Arc<dyn Store>,
-    registry: Arc<Registry>,
+    shared: Shared,
     shutdown: impl Future<Output = ()> + Send + 'static,
 ) -> io::Result<()> {
-    axum::serve(listener, router(Shared { store, registry }))
+    axum::serve(listener, router(shared))
         .with_graceful_shutdown(shutdown)
         .await
 }
@@ -125,16 +155,9 @@ async fn health() -> Json<Health> {
     Json(Health { status: "ok" })
 }
 
-#[utoipa::path(
-    get,
-    path = "/api/v1/atoms",
-    params(Params),
-    responses(
-        (status = 200, content_type = "application/x-ndjson", description = "Stored Atoms in the window, verbatim, one per line"),
-        (status = 400, body = Fault)
-    )
-)]
+#[utoipa::path(get, path = "/api/v1/atoms", params(Params), responses(Stream))]
 async fn atoms(State(shared): State<Shared>, Query(params): Query<Params>) -> Response {
+    let floor = shared.retention.floor(retention::now());
     let store = shared.store;
     let filter = match params.filter() {
         Ok(filter) => filter,
@@ -160,11 +183,17 @@ async fn atoms(State(shared): State<Shared>, Query(params): Query<Params>) -> Re
             let _ = sender.blocking_send(Err(io::Error::other(message)));
         }
     });
-    (
+    let mut response = (
         [(header::CONTENT_TYPE, "application/x-ndjson")],
         Body::from_stream(ReceiverStream::new(receiver)),
     )
-        .into_response()
+        .into_response();
+    if let Some(floor) = floor {
+        response
+            .headers_mut()
+            .insert(RETAINED, HeaderValue::from(floor));
+    }
+    response
 }
 
 #[utoipa::path(

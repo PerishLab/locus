@@ -6,7 +6,8 @@ use locus::reporter;
 use locus::{Candidate, Config, Context, Engine, Policy, Role};
 use locus_api::drain::Drain;
 use locus_api::registry::Registry;
-use locus_api::server;
+use locus_api::retention::Retention;
+use locus_api::server::{self, Shared};
 use locus_api::store::{Segments, Store};
 use serde_json::json;
 use std::fs;
@@ -28,7 +29,7 @@ struct Served {
 
 #[test]
 fn identical() {
-    let served = launch();
+    let served = launch(Retention::default());
     let cases: [&[&str]; 4] = [
         &["span"],
         &["query", "locus.trace"],
@@ -46,7 +47,7 @@ fn identical() {
 
 #[test]
 fn selected() {
-    let served = launch();
+    let served = launch(Retention::default());
     let selector = format!("locus.trace={}", served.trace);
     let args = [
         "query",
@@ -71,11 +72,39 @@ fn selected() {
 
 #[test]
 fn refused() {
-    let served = launch();
+    let served = launch(Retention::default());
     let args = ["span", "--api", &served.api, "--select", "locus.trace"];
     let output = locus(None, &args);
     assert_eq!(output.status.code(), Some(2));
     assert!(output.stdout.is_empty());
+}
+
+#[test]
+fn retained() {
+    let served = launch(Retention::days(7));
+    let floor = Retention::days(7)
+        .floor(locus_api::retention::now())
+        .expect("floor");
+    let root = Root::new(Some(CONFIG));
+    let cases: [(Option<&Path>, &[&str]); 3] = [
+        (None, &["span"]),
+        (None, &["query", "locus.trace"]),
+        (Some(root.path()), &["inspect"]),
+    ];
+    for (root, args) in cases {
+        let output = locus(root, &[args, &["--api", &served.api]].concat());
+        let text = String::from_utf8(output.stdout).expect("utf8");
+        let summary: serde_json::Value =
+            serde_json::from_str(text.lines().last().expect("summary")).expect("json");
+        assert_eq!(summary["retained"], floor, "{args:?}");
+    }
+    let plain = launch(Retention::default());
+    let output = locus(None, &["span", "--api", &plain.api]);
+    assert!(
+        !String::from_utf8(output.stdout)
+            .expect("utf8")
+            .contains("retained")
+    );
 }
 
 #[locus::trace(with = view)]
@@ -134,7 +163,7 @@ fn record(spool: &Path) {
     }
 }
 
-fn launch() -> Served {
+fn launch(retention: Retention) -> Served {
     let home = Root::new(None);
     let spool = home.path().join("spool");
     record(&spool);
@@ -163,9 +192,13 @@ fn launch() -> Served {
             sender
                 .send(listener.local_addr().expect("address"))
                 .expect("send");
-            server::serve(listener, store, registry, std::future::pending())
-                .await
-                .expect("serve");
+            server::serve(
+                listener,
+                Shared::new(store, registry, retention),
+                std::future::pending(),
+            )
+            .await
+            .expect("serve");
         });
     });
     let api = format!("http://{}", receiver.recv().expect("address"));
