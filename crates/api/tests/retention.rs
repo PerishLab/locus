@@ -19,13 +19,7 @@ fn dropped() {
     Retention::days(2)
         .apply(&store, TODAY * DAY + 5)
         .expect("apply");
-    let days: Vec<u64> = store
-        .partitions()
-        .expect("partitions")
-        .into_iter()
-        .map(|(_, day)| day)
-        .collect();
-    assert_eq!(days, vec![TODAY - 2, TODAY - 1, TODAY]);
+    assert_eq!(days(&store), vec![TODAY - 2, TODAY - 1, TODAY]);
     assert_eq!(count(&store), 3);
 }
 
@@ -35,7 +29,7 @@ fn undeclared() {
     Retention::default()
         .apply(&store, TODAY * DAY)
         .expect("apply");
-    assert_eq!(store.partitions().expect("partitions").len(), 5);
+    assert_eq!(days(&store).len(), 5);
     assert_eq!(Retention::default().floor(TODAY * DAY), None);
     assert_eq!(
         Retention::days(2).floor(TODAY * DAY + 5),
@@ -84,8 +78,21 @@ fn seeded(label: &str) -> Segments {
                 .expect("record")
         })
         .collect();
-    store.append(&producer, &records).expect("append");
+    store.append(&producer, &records, "seed").expect("append");
     store
+}
+
+fn days(store: &Segments) -> Vec<u64> {
+    let mut found = Vec::new();
+    store
+        .read(&Filter::default(), &mut |line| {
+            let atom: serde_json::Value = serde_json::from_slice(line).expect("atom");
+            found.push(atom["at"].as_u64().expect("at") / DAY);
+            Ok(())
+        })
+        .expect("read");
+    found.dedup();
+    found
 }
 
 fn count(store: &Segments) -> usize {

@@ -122,19 +122,29 @@ and engine diagnostic handoff.
     persists registrations in `spools.json` under its home. Registration is
     the only way a buffer reaches the server. A registered buffer is drained
     by claiming its sealed segments, reading each by offset in complete lines,
-    storing them, and removing them. Lines that are not Atoms are kept in `rejected/<producer>.jsonl`, never
-    stored.
-  - Store: append a batch of one producer's records; read by time window
-    `[from, to)` with an optional exact role/key and producer; list the
-    producer-day partitions it holds; drop one whole producer-day partition. Reads return stored order within a partition and
-    partitions in day, then producer, order.
+    storing them, and removing them. Lines that are not Atoms are kept in
+    `rejected/<producer>.jsonl`, never stored.
+  - Store: append a batch of one producer's records under a batch token;
+    read by time window `[from, to)` with an optional exact role/key and
+    producer; drop every producer-day partition before a day; tick, which
+    seals and sweeps whatever the store keeps open. Within one trace, reads
+    return records in time order.
   - Read API: `GET /api/v1/atoms` streams stored records as JSONL. With a
     declared retention it names, in `locus-retained-from`, the instant before
     which history is not retained.
     `locus-api export-openapi` and its snapshot test own the HTTP contract; the
     `--help` snapshots own both command surfaces.
 - Delivery is at least once: a crash between a store append and its offset
-  record re-reads those lines.
+  record re-reads those lines. The drained segment and offset are the batch
+  token, so the store applies a re-read batch once.
+- The store is `keel-column` (`Columns`): raw Atom bytes verbatim, `at` as
+  time, producer and `locus.trace` as key columns sorted by trace, partitioned
+  by producer and day. Its manifest lives in a Keel estate the server hosts at
+  `<home>/estate.sqlite3`, bootstrapped on first start, with parts under
+  `<home>/column`. Producer and trace selections prune parts; any other role
+  is selected exactly by reading each candidate. A JSONL `store` directory
+  left by an earlier server is migrated at startup, one day at a time, and a
+  day file is removed only after it reads back byte for byte.
 - The server listens on loopback only and carries no authentication yet.
 - Retention is declared only in `[retention] days` of `<home>/locus-api.toml`,
   the server's standard config file; malformed config refuses at startup.
@@ -187,7 +197,7 @@ configuration file and hands the result to `Policy`.
 - `crates/locus` is the engine and public substrate.
 - `crates/macro` is the source adapter and shares the exact release version.
 - `crates/cli` is the structural inspector and exact Atom query over the read API.
-- `crates/api` is the `locus-api` server: drain, store, registry, and the read API.
+- `crates/api` is the `locus-api` server: drain, column store and migration, registry, retention, and the read API.
 - `packaging/deb` is the `locus-api` Debian placement: control, maintainer scripts, and `root/` payload.
 - Git hooks are not tracked: `plumb configuration install` writes the Plumb Guard hooks into Git's default hooks path. `runseal.toml` is the Runseal profile.
 

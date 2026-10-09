@@ -86,7 +86,8 @@ impl Drain {
                 Err(_) => rejected.push(line),
             }
         }
-        self.store.append(&source.producer, &records)?;
+        let token = format!("{}@{offset}", path.display());
+        self.store.append(&source.producer, &records, &token)?;
         self.reject(&source.producer, &rejected)?;
         Ok(complete as u64)
     }

@@ -1,9 +1,11 @@
 use clap::{Args, Parser, Subcommand};
+use locus_api::column::Columns;
 use locus_api::drain::Drain;
+use locus_api::migrate;
 use locus_api::registry::Registry;
 use locus_api::retention::{self, Retention};
 use locus_api::server::{self, Shared};
-use locus_api::store::{Segments, Store};
+use locus_api::store::Store;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -76,7 +78,14 @@ fn run(serve: Serve) -> Result<(), String> {
     if !serve.listen.ip().is_loopback() {
         return Err(format!("{} is not a loopback address", serve.listen));
     }
-    let store: Arc<dyn Store> = Arc::new(Segments::open(home.join("store"))?);
+    let runtime = tokio::runtime::Runtime::new().map_err(|error| error.to_string())?;
+    let columns = runtime.block_on(Columns::open(&home, runtime.handle().clone()))?;
+    let store: Arc<dyn Store> = Arc::new(columns);
+    let legacy = home.join("store");
+    if legacy.is_dir() {
+        let days = migrate::migrate(&legacy, store.as_ref())?;
+        eprintln!("locus-api: migrated {days} stored day(s) into the column store");
+    }
     let registry = Arc::new(Registry::open(home.join("spools.json"))?);
     let retention = Retention::read(&home)?;
     let drain = Drain::new(store.clone(), home.join("rejected"), registry.clone());
@@ -87,13 +96,16 @@ fn run(serve: Serve) -> Result<(), String> {
             if let Err(error) = drain.cycle() {
                 eprintln!("locus-api: drain: {error}");
             }
-            if let Err(error) = retention.apply(kept.as_ref(), retention::now()) {
+            let now = retention::now();
+            if let Err(error) = kept.tick(now) {
+                eprintln!("locus-api: seal: {error}");
+            }
+            if let Err(error) = retention.apply(kept.as_ref(), now) {
                 eprintln!("locus-api: retention: {error}");
             }
             thread::sleep(interval);
         }
     });
-    let runtime = tokio::runtime::Runtime::new().map_err(|error| error.to_string())?;
     runtime.block_on(async move {
         let listener = tokio::net::TcpListener::bind(serve.listen)
             .await

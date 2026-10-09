@@ -45,15 +45,10 @@ impl Retention {
     }
 
     pub fn apply(&self, store: &dyn Store, now: u64) -> Result<(), String> {
-        let Some(floor) = self.floor(now) else {
-            return Ok(());
-        };
-        for (producer, day) in store.partitions()? {
-            if day < floor / day::NANOS {
-                store.expire(&producer, day)?;
-            }
+        match self.floor(now) {
+            Some(floor) => store.retain(floor / day::NANOS, now),
+            None => Ok(()),
         }
-        Ok(())
     }
 }
 

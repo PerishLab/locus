@@ -18,6 +18,7 @@ fn verbatim() {
         .append(
             &producer("concord"),
             &[Record::parse(line.as_bytes()).expect("record")],
+            "token",
         )
         .expect("append");
     assert_eq!(read(&store, &Filter::default()), vec![line]);
@@ -74,16 +75,12 @@ fn producers() {
 }
 
 #[test]
-fn expire() {
-    let store = store("expire");
+fn retained() {
+    let store = store("retained");
     append(&store, "concord", &[(BASE, "a"), (BASE + DAY, "b")]);
-    store
-        .expire(&producer("concord"), BASE / DAY)
-        .expect("expire");
+    store.retain(BASE / DAY + 1, 0).expect("retain");
     assert_eq!(times(&read(&store, &Filter::default())), vec![BASE + DAY]);
-    store
-        .expire(&producer("concord"), BASE / DAY)
-        .expect("idempotent");
+    store.retain(BASE / DAY + 1, 0).expect("idempotent");
 }
 
 #[test]
@@ -121,7 +118,9 @@ fn append(store: &Segments, name: &str, atoms: &[(u64, &str)]) {
             Record::parse(line.as_bytes()).expect("record")
         })
         .collect();
-    store.append(&producer(name), &records).expect("append");
+    store
+        .append(&producer(name), &records, "token")
+        .expect("append");
 }
 
 fn read(store: &Segments, filter: &Filter) -> Vec<String> {

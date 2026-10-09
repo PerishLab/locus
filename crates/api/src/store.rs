@@ -40,6 +40,7 @@ impl fmt::Display for Producer {
 pub struct Record {
     bytes: Vec<u8>,
     at: u64,
+    trace: String,
 }
 
 impl Record {
@@ -48,11 +49,24 @@ impl Record {
         Ok(Self {
             bytes: line.to_vec(),
             at: atom.at(),
+            trace: atom
+                .context()
+                .get(Role::trace().text())
+                .cloned()
+                .unwrap_or_default(),
         })
     }
 
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
+    }
+
+    pub fn at(&self) -> u64 {
+        self.at
+    }
+
+    pub fn trace(&self) -> &str {
+        &self.trace
     }
 }
 
@@ -81,7 +95,7 @@ pub struct Filter {
 }
 
 impl Filter {
-    fn admits(&self, atom: &Atom) -> bool {
+    pub(crate) fn admits(&self, atom: &Atom) -> bool {
         self.window.contains(atom.at())
             && self.selector.as_ref().is_none_or(|(role, key)| {
                 atom.context().get(role.text()).map(String::as_str) == Some(key.text())
@@ -89,13 +103,13 @@ impl Filter {
     }
 }
 
-pub type Sink<'a> = dyn FnMut(&[u8]) -> Result<(), String> + 'a;
+pub type Sink<'a> = dyn FnMut(&[u8]) -> Result<(), String> + Send + 'a;
 
 pub trait Store: Send + Sync {
-    fn append(&self, producer: &Producer, records: &[Record]) -> Result<(), String>;
+    fn append(&self, producer: &Producer, records: &[Record], token: &str) -> Result<(), String>;
     fn read(&self, filter: &Filter, sink: &mut Sink<'_>) -> Result<(), String>;
-    fn partitions(&self) -> Result<Vec<(Producer, u64)>, String>;
-    fn expire(&self, producer: &Producer, day: u64) -> Result<(), String>;
+    fn retain(&self, floor: u64, now: u64) -> Result<(), String>;
+    fn tick(&self, now: u64) -> Result<(), String>;
 }
 
 pub struct Segments {
@@ -146,7 +160,7 @@ impl Segments {
 }
 
 impl Store for Segments {
-    fn append(&self, producer: &Producer, records: &[Record]) -> Result<(), String> {
+    fn append(&self, producer: &Producer, records: &[Record], _: &str) -> Result<(), String> {
         let _guard = self
             .lock
             .lock()
@@ -196,23 +210,22 @@ impl Store for Segments {
         Ok(())
     }
 
-    fn partitions(&self) -> Result<Vec<(Producer, u64)>, String> {
-        Ok(self
-            .covered(&Filter::default())?
-            .into_iter()
-            .map(|(day, producer, _)| (producer, day))
-            .collect())
-    }
-
-    fn expire(&self, producer: &Producer, day: u64) -> Result<(), String> {
+    fn retain(&self, floor: u64, _: u64) -> Result<(), String> {
         let _guard = self
             .lock
             .lock()
             .map_err(|_| "store lock is poisoned".to_string())?;
-        match fs::remove_file(self.path(producer, day)) {
-            Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error.to_string()),
-            _ => Ok(()),
-        }
+        self.covered(&Filter::default())?
+            .into_iter()
+            .filter(|(day, _, _)| *day < floor)
+            .try_for_each(|(_, _, path)| match fs::remove_file(&path) {
+                Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error.to_string()),
+                _ => Ok(()),
+            })
+    }
+
+    fn tick(&self, _: u64) -> Result<(), String> {
+        Ok(())
     }
 }
 
