@@ -1,0 +1,16 @@
+#!/bin/sh
+# locus-api postinst: reload unit files only. The service runs per user as
+# locus-api@<user>, reading that user's own Locus buffers, so the package
+# enables and starts nothing; the operator runs
+#   systemctl enable --now locus-api@<user>
+set -e
+
+case "$1" in
+configure)
+    if [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1; then
+        systemctl daemon-reload || true
+    fi
+    ;;
+esac
+
+exit 0

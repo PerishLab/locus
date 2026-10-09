@@ -1,0 +1,14 @@
+#!/bin/sh
+# locus-api prerm: stop every per-user instance only on a real removal, never on
+# upgrade; restarting across an upgrade stays with the operator.
+set -e
+
+case "$1" in
+remove | deconfigure)
+    if [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1; then
+        systemctl stop 'locus-api@*.service' || true
+    fi
+    ;;
+esac
+
+exit 0

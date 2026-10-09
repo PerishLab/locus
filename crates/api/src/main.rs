@@ -27,8 +27,11 @@ enum Command {
 
 #[derive(Args)]
 struct Serve {
-    #[arg(long, help = "Directory holding the store and rejected records")]
-    home: PathBuf,
+    #[arg(
+        long,
+        help = "Directory holding the store, registry and rejected records [default: the user's .locus]"
+    )]
+    home: Option<PathBuf>,
     #[arg(
         long,
         default_value = "127.0.0.1:43308",
@@ -66,6 +69,10 @@ struct Serve {
 }
 
 fn main() -> ExitCode {
+    if let Err(error) = plumb::identity!("LOCUS") {
+        eprintln!("locus-api: {error}");
+        return ExitCode::from(1);
+    }
     match Cli::parse().command {
         Command::Serve(serve) => match run(serve) {
             Ok(()) => ExitCode::SUCCESS,
@@ -82,12 +89,16 @@ fn main() -> ExitCode {
 }
 
 fn run(serve: Serve) -> Result<(), String> {
+    let home = serve
+        .home
+        .or_else(|| plumb::config::data("locus"))
+        .ok_or("no home: pass --home or set the user's home")?;
     if !serve.listen.ip().is_loopback() {
         return Err(format!("{} is not a loopback address", serve.listen));
     }
-    let store: Arc<dyn Store> = Arc::new(Segments::open(serve.home.join("store"))?);
-    let registry = Arc::new(Registry::open(serve.home.join("spools.json"))?);
-    let takeover = Takeover::new(store.clone(), serve.home.join("rejected"))
+    let store: Arc<dyn Store> = Arc::new(Segments::open(home.join("store"))?);
+    let registry = Arc::new(Registry::open(home.join("spools.json"))?);
+    let takeover = Takeover::new(store.clone(), home.join("rejected"))
         .registry(registry.clone())
         .files(serve.sources, Duration::from_secs(serve.grace))
         .spools(serve.spools);

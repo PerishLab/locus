@@ -1,0 +1,15 @@
+[Unit]
+Description=Locus recording service for %i
+Documentation=https://github.com/PerishLab/locus
+After=network-online.target
+
+[Service]
+Type=simple
+User=%i
+ExecStart=/usr/bin/locus-api serve
+Restart=on-failure
+RestartSec=2
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target
