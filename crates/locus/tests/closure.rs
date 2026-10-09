@@ -5,7 +5,7 @@ use locus::{
 };
 use serde_json::json;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -173,13 +173,12 @@ fn bootstrap() {
 }
 
 #[test]
-fn file() {
+fn delivered() {
     let home = temp("report");
-    fs::create_dir(&home).expect("temp");
-    let path = home.join("atoms.jsonl");
+    let spool = home.join("spool");
     let hook = Arc::new(Capture::default());
-    let policy = Policy::default().reporter(reporter::Spec::file(&path));
-    let engine = Engine::bootstrap(Config::new(policy).hook(hook.clone())).expect("bootstrap");
+    let engine = Engine::bootstrap(Config::new(api(&spool)).hook(hook.clone())).expect("bootstrap");
+    hook.take();
 
     engine
         .append(
@@ -188,23 +187,25 @@ fn file() {
         )
         .expect("append");
 
-    let text = fs::read_to_string(&path).expect("read");
+    let text = fs::read_to_string(spool.join("active.jsonl")).expect("read");
     assert_eq!(text.lines().count(), 1);
     let atom: locus::Atom = serde_json::from_str(text.trim()).expect("atom");
     assert_eq!(atom.payload(), Some(&json!({"event": "cli.start"})));
     let seen = hook.take();
     let outcome = report(&seen[0]).expect("outcome");
     assert_eq!(outcome.status(), &Status::Delivered);
-    assert_eq!(outcome.reporter(), Some("file"));
+    assert_eq!(outcome.reporter(), Some("api"));
     fs::remove_dir_all(home).expect("cleanup");
 }
 
-#[cfg(unix)]
 #[test]
 fn failure() {
+    let home = temp("failure");
+    let spool = home.join("spool");
     let hook = Arc::new(Capture::default());
-    let policy = Policy::default().reporter(reporter::Spec::file("/dev/full"));
-    let engine = Engine::bootstrap(Config::new(policy).hook(hook.clone())).expect("bootstrap");
+    let engine = Engine::bootstrap(Config::new(api(&spool)).hook(hook.clone())).expect("bootstrap");
+    fs::create_dir(spool.join("active.jsonl")).expect("obstruct");
+    hook.take();
 
     let accepted = engine
         .append(
@@ -216,6 +217,13 @@ fn failure() {
     assert_eq!(accepted.context(), Context::empty());
     let seen = hook.take();
     assert_eq!(report(&seen[0]).expect("outcome").status(), &Status::Failed);
+    fs::remove_dir_all(home).expect("cleanup");
+}
+
+fn api(spool: &Path) -> Policy {
+    Policy::default()
+        .producer("concord")
+        .reporter(reporter::Spec::api("http://127.0.0.1:9", spool))
 }
 
 struct Panic;

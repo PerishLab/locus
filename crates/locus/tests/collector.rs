@@ -147,11 +147,12 @@ fn schema() {
 fn record(label: &str, policy: Policy, candidate: Candidate) -> locus::Atom {
     let home = temp(label);
     fs::create_dir(&home).expect("temp");
-    let path = home.join("atoms.jsonl");
-    let engine = Engine::bootstrap(Config::new(policy.reporter(reporter::Spec::file(&path))))
+    let spool = home.join("spool");
+    let reporter = reporter::Spec::api("http://127.0.0.1:9", &spool);
+    let engine = Engine::bootstrap(Config::new(policy.producer("concord").reporter(reporter)))
         .expect("bootstrap");
     engine.append(&Context::empty(), candidate).expect("append");
-    let text = fs::read_to_string(path).expect("read");
+    let text = fs::read_to_string(spool.join("active.jsonl")).expect("read");
     let atom = serde_json::from_str(text.trim()).expect("atom");
     fs::remove_dir_all(home).expect("cleanup");
     atom

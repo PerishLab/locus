@@ -12,6 +12,7 @@ syntax = "test"
 paths = [
     "crates/*/tests/**/*.rs",
     "crates/locus/src/collector.rs",
+    "crates/locus/src/reporter/spool/tests.rs",
 ]
 syntax = "environment"
 

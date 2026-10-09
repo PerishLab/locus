@@ -48,9 +48,9 @@ and engine diagnostic handoff.
   reporter name, never as a new option on an existing one, so an older engine
   refuses it at bootstrap through the diagnostic path instead of half-honoring
   it.
-- The spool reporter hands Atoms off through `active.jsonl` and immutable,
-  time-ordered `sealed-*` segments, with one contract on every platform a
-  product ships to. Writers serialize on `spool.lock`, a file never renamed,
+- The `api` reporter is the only reporter. Its buffer hands Atoms off through
+  `active.jsonl` and immutable, time-ordered `sealed-*` segments, with one
+  contract on every platform a product ships to. Writers serialize on `spool.lock`, a file never renamed,
   and open `active.jsonl` only for one append, so no writer holds a segment
   that may be sealed and no file identity is needed. The sealed and claimed
   byte total lives in that lock file as an upper bound; a missing or stale
@@ -58,14 +58,14 @@ and engine diagnostic handoff.
   claimed segment, so a consumer never blocks the observed product. A consumer
   claims sealed segments by renaming them to `claimed-*`, then stores and
   removes them; writers never touch a claimed segment.
-- The `api` reporter is how a product reports to `locus-api`: it declares only
+- A product reports to `locus-api` by declaring the `api` reporter with only
   an endpoint and a buffer directory. Locus buffers through the spool contract
   under bounds it owns, sealing a segment by size or once it is a minute old so
   short-lived products become visible, and registers the buffer with the
   endpoint when the engine is built. Registration never blocks or fails the
   product: a buffer that has registered before stays silent while the server is
   down, and one never registered reports `reporter.registration` to the hook.
-- The product-declared spool ceiling bounds active, sealed, and claimed bytes
+- The Locus-owned spool ceiling bounds active, sealed, and claimed bytes
   and is only a safety valve. Past it, the oldest unclaimed sealed segments are
   deleted, their records counted in `loss.jsonl`, and the loss reported to the
   hook as `reporter.loss`. Loss never re-enters the Atom stream.
@@ -74,9 +74,11 @@ and engine diagnostic handoff.
 - Engine diagnostics never re-enter the Atom stream or reporter runtime. They
   hand off to the configured hook, with a terminal stderr adaptor as default.
 - JSONL is the cold-start codec, not the permanent logical encoding.
-- File reporting preserves one encoded record boundary across concurrent
-  engines and processes.
-- CLI inspection reads one root `locus.toml`, consumes JSONL from stdin, and
+- The buffer preserves one encoded record boundary across concurrent engines
+  and processes.
+- The CLI reads Atoms only from a `locus-api` read API, at `--api` (default
+  `http://127.0.0.1:43308`), narrowed by its window, selector and producer.
+- CLI inspection reads one root `locus.toml`, consumes that stream, and
   composes Locus-owned mappings with product-declared thresholds. It emits only
   domain-independent structural findings and an explicit coverage summary.
   Malformed declaration or input refuses without partial output. It never
@@ -84,12 +86,10 @@ and engine diagnostic handoff.
   time mapping runs the span derivation, refuses the same crossings, and counts
   the refused spans in its summary; it groups by the entering record's own
   Context and never inherits a key from an enclosing frame.
-- CLI query consumes JSONL from stdin, or the same stream from a `locus-api`
-  through `--api`, and selects one exact role with an
-  optional exact key. It enumerates identities or replays matching logical
+- CLI query selects one exact role with an optional exact key. It enumerates identities or replays matching logical
   Atoms, then reports complete coverage without inferring lifecycle, ownership,
   causality, or liveness.
-- CLI span consumes JSONL from stdin and pairs one entering source record with
+- CLI span pairs one entering source record with
   its returning record. It reports elapsed and held time per traced declaration
   and names every entered span that never returned. Held time reads containment
   within one trace as the only nesting evidence, so partial overlap refuses
@@ -103,19 +103,15 @@ and engine diagnostic handoff.
 ## Server
 
 - `locus-api` records faithfully and derives nothing. It keeps every Atom it
-  takes over verbatim and returns stored records byte for byte; query, span,
-  and inspection stay in the CLI, so `--api` and stdin derive identically.
+  drains verbatim and returns stored records byte for byte; query, span, and
+  inspection stay in the CLI.
 - Three interfaces are fixed; the internals behind them may change.
   - Handoff: a product's buffer registers itself through
     `POST /api/v1/spools` (a directory holding `spool.lock`), and the server
-    persists registrations in `spools.json` under its home. A registered or
-    `--spool` buffer is drained by claiming its sealed segments,
-    storing them, and removing them. A product still on the file reporter is
-    taken over by renaming its report file beside itself, reading taken files
-    by offset in complete lines, and removing one only after it has stayed idle
-    past the grace period; a writer holding the old descriptor loses nothing
-    within the grace. That file form remains until products move to the spool.
-    Lines that are not Atoms are kept in `rejected/<producer>.jsonl`, never
+    persists registrations in `spools.json` under its home. Registration is
+    the only way a buffer reaches the server. A registered buffer is drained
+    by claiming its sealed segments, reading each by offset in complete lines,
+    storing them, and removing them. Lines that are not Atoms are kept in `rejected/<producer>.jsonl`, never
     stored.
   - Store: append a batch of one producer's records; read by time window
     `[from, to)` with an optional exact role/key and producer; drop one whole
@@ -172,8 +168,8 @@ configuration file and hands the result to `Policy`.
 
 - `crates/locus` is the engine and public substrate.
 - `crates/macro` is the source adapter and shares the exact release version.
-- `crates/cli` is the stdin-first structural inspector and exact Atom query.
-- `crates/api` is the `locus-api` server: takeover, store, registry, and the read API.
+- `crates/cli` is the structural inspector and exact Atom query over the read API.
+- `crates/api` is the `locus-api` server: drain, store, registry, and the read API.
 - `packaging/deb` is the `locus-api` Debian placement: control, maintainer scripts, and `root/` payload.
 - `.runseal/hooks` carries the Plumb Guard Git hooks; `runseal.toml` is the Runseal profile.
 

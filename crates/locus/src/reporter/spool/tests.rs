@@ -1,40 +1,23 @@
-use locus::reporter::{self, spool};
-use locus::{Candidate, Config, Context, Engine, Hook, Observation, Policy};
+use super::{Report, Spool, claim, open, segments};
+use crate::Atom;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const CHILD: &str = "LOCUS_SPOOL_CHILD";
 const WORKER: &str = "LOCUS_SPOOL_WORKER";
-
-#[derive(Default)]
-struct Capture {
-    codes: Mutex<Vec<String>>,
-}
-
-impl Hook for Capture {
-    fn observe(&self, observation: &Observation) {
-        if let Observation::Diagnostic(diagnostic) = observation {
-            self.codes
-                .lock()
-                .expect("capture")
-                .push(diagnostic.code().to_string());
-        }
-    }
-}
 
 #[test]
 fn writer() {
     let (Ok(directory), Ok(worker)) = (std::env::var(CHILD), std::env::var(WORKER)) else {
         return;
     };
-    let engine = engine(Path::new(&directory), 1 << 30, 4_096, None);
+    let spool = open(&directory, 1 << 30, 4_096).expect("spool");
     for sequence in 0..300 {
-        emit(&engine, &worker, sequence);
+        emit(&spool, &worker, sequence);
     }
 }
 
@@ -44,7 +27,7 @@ fn processes() {
     let children: Vec<_> = (0..6)
         .map(|worker| {
             Command::new(std::env::current_exe().expect("test binary"))
-                .args(["--exact", "writer", "--quiet"])
+                .args(["--exact", "reporter::spool::tests::writer", "--quiet"])
                 .env(CHILD, &directory)
                 .env(WORKER, worker.to_string())
                 .spawn()
@@ -57,12 +40,7 @@ fn processes() {
     let atoms = Spooled(&directory).atoms();
     assert_eq!(atoms.len(), 1_800);
     assert_eq!(distinct(&atoms, "id"), 1_800);
-    let payloads: BTreeSet<_> = atoms
-        .iter()
-        .map(|atom| atom["payload"].to_string())
-        .collect();
-    assert_eq!(payloads.len(), 1_800);
-    let sealed = spool::segments(&directory).expect("segments");
+    let sealed = segments(&directory).expect("segments");
     assert!(sealed.len() > 10);
     for path in sealed {
         let size = fs::metadata(&path).expect("segment").len();
@@ -73,10 +51,10 @@ fn processes() {
 #[test]
 fn ceiling() {
     let directory = temp("ceiling");
-    let capture = Arc::new(Capture::default());
-    let engine = engine(&directory, 8_192, 2_048, Some(capture.clone()));
+    let spool = open(directory.to_str().expect("utf8"), 8_192, 2_048).expect("spool");
+    let mut losses = 0;
     for sequence in 0..300 {
-        emit(&engine, "single", sequence);
+        losses += usize::from(emit(&spool, "single", sequence).is_some());
         assert!(Spooled(&directory).footprint() <= 8_192);
     }
     let lost: u64 = Spooled(&directory)
@@ -84,31 +62,28 @@ fn ceiling() {
         .iter()
         .map(|entry| entry["records"].as_u64().expect("records"))
         .sum();
-    assert!(lost > 0);
+    assert!(lost > 0 && losses > 0);
     assert_eq!(lost + Spooled(&directory).atoms().len() as u64, 300);
-    let codes = capture.codes.lock().expect("capture");
-    assert!(!codes.is_empty());
-    assert!(codes.iter().all(|code| code == "reporter.loss"));
 }
 
 #[test]
 fn consumer() {
     let directory = temp("consumer");
-    let engine = engine(&directory, 8_192, 2_048, None);
+    let spool = open(directory.to_str().expect("utf8"), 8_192, 2_048).expect("spool");
     let mut sequence = 0;
-    while spool::segments(&directory).expect("segments").len() < 2 {
-        emit(&engine, "single", sequence);
+    while segments(&directory).expect("segments").len() < 2 {
+        emit(&spool, "single", sequence);
         sequence += 1;
     }
-    let claimed = spool::claim(&directory).expect("claim");
+    let claimed = claim(&directory).expect("claim");
     assert_eq!(claimed.len(), 2);
-    assert!(spool::segments(&directory).expect("segments").is_empty());
+    assert!(segments(&directory).expect("segments").is_empty());
     let held: Vec<_> = claimed
         .iter()
         .map(|path| fs::read(path).expect("claimed"))
         .collect();
     for _ in 0..200 {
-        emit(&engine, "single", sequence);
+        emit(&spool, "single", sequence);
         sequence += 1;
     }
     for (path, bytes) in claimed.iter().zip(held) {
@@ -132,17 +107,17 @@ fn consumer() {
 #[test]
 fn sealed() {
     let directory = temp("sealed");
-    let engine = engine(&directory, 1 << 30, 1_024, None);
+    let spool = open(directory.to_str().expect("utf8"), 1 << 30, 1_024).expect("spool");
     for sequence in 0..40 {
-        emit(&engine, "single", sequence);
+        emit(&spool, "single", sequence);
     }
-    let before: Vec<_> = spool::segments(&directory)
+    let before: Vec<_> = segments(&directory)
         .expect("segments")
         .into_iter()
         .map(|path| (fs::read(&path).expect("segment"), path))
         .collect();
     for sequence in 40..80 {
-        emit(&engine, "single", sequence);
+        emit(&spool, "single", sequence);
     }
     let mut first = 0;
     for (bytes, path) in before {
@@ -157,20 +132,6 @@ fn sealed() {
 }
 
 #[test]
-fn identity() {
-    let directory = temp("identity");
-    let engine = engine(&directory, 1 << 30, 1_024, None);
-    for sequence in 0..50 {
-        emit(&engine, "single", sequence);
-    }
-    let atoms = Spooled(&directory).atoms();
-    assert!(atoms.iter().all(|atom| atom["producer"] == "concord"));
-    let twice: Vec<Value> = atoms.iter().chain(atoms.iter()).cloned().collect();
-    assert_eq!(twice.len(), 100);
-    assert_eq!(distinct(&twice, "id"), 50);
-}
-
-#[test]
 fn inherited() {
     let directory = temp("inherited");
     let line = format!("{}\n", json!({"at": 1, "choices": [], "context": {}}));
@@ -179,64 +140,40 @@ fn inherited() {
         line.repeat(300),
     )
     .expect("seed");
-    let engine = engine(&directory, 8_192, 2_048, None);
-    emit(&engine, "single", 0);
+    let spool = open(directory.to_str().expect("utf8"), 8_192, 2_048).expect("spool");
+    emit(&spool, "single", 0);
     assert!(Spooled(&directory).footprint() <= 8_192);
     assert_eq!(Spooled(&directory).ledger()[0]["records"], 300);
 }
 
-#[test]
-fn refused() {
-    let directory = temp("refused");
-    let declarations = [
-        Policy::default()
-            .producer("Concord")
-            .reporter(reporter::Spec::file(directory.join("a"))),
-        Policy::default().reporter(reporter::Spec::new(
-            "spool",
-            json!({"path": directory, "ceiling": 10, "segment": 1, "compression": "zstd"}),
-        )),
-        Policy::default().reporter(reporter::Spec::new("future", json!({}))),
-    ];
-    for policy in declarations {
-        let capture = Arc::new(Capture::default());
-        let result = Engine::bootstrap(Config::new(policy).hook(capture.clone()));
-        assert!(result.is_err());
-        assert_eq!(
-            *capture.codes.lock().expect("capture"),
-            vec!["bootstrap.failed"]
-        );
-    }
-}
-
-fn engine(directory: &Path, ceiling: u64, segment: u64, hook: Option<Arc<Capture>>) -> Engine {
-    let policy = Policy::default()
-        .producer("concord")
-        .reporter(reporter::Spec::spool(directory, ceiling, segment));
-    let config = match hook {
-        Some(hook) => Config::new(policy).hook(hook),
-        None => Config::new(policy),
-    };
-    Engine::bootstrap(config).expect("engine")
-}
-
-fn emit(engine: &Engine, worker: &str, sequence: usize) {
-    engine
-        .append(
-            &Context::empty(),
-            Candidate::event(json!({"worker": worker, "sequence": sequence})),
-        )
-        .expect("append");
+fn emit(spool: &Spool, worker: &str, sequence: usize) -> Option<String> {
+    let at = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock")
+        .as_nanos();
+    let atom: Atom = serde_json::from_value(json!({
+        "at": u64::try_from(at).expect("at"),
+        "id": format!("{worker}-{sequence}"),
+        "producer": "concord",
+        "context": {},
+        "choices": [],
+        "payload": {"worker": worker, "sequence": sequence},
+    }))
+    .expect("atom");
+    spool.report(&atom).expect("report")
 }
 
 struct Spooled<'a>(&'a Path);
 
 impl Spooled<'_> {
-    fn atoms(&self) -> Vec<Value> {
-        let directory = self.0;
-        let mut paths = spool::segments(directory).expect("segments");
-        paths.push(directory.join("active.jsonl"));
+    fn files(&self) -> Vec<PathBuf> {
+        let mut paths = segments(self.0).expect("segments");
+        paths.push(self.0.join("active.jsonl"));
         paths
+    }
+
+    fn atoms(&self) -> Vec<Value> {
+        self.files()
             .iter()
             .filter_map(|path| fs::read_to_string(path).ok())
             .flat_map(|text| {
@@ -248,8 +185,7 @@ impl Spooled<'_> {
     }
 
     fn ledger(&self) -> Vec<Value> {
-        let directory = self.0;
-        fs::read_to_string(directory.join("loss.jsonl"))
+        fs::read_to_string(self.0.join("loss.jsonl"))
             .map(|text| {
                 text.lines()
                     .map(|line| serde_json::from_str(line).expect("entry"))
@@ -259,10 +195,7 @@ impl Spooled<'_> {
     }
 
     fn footprint(&self) -> u64 {
-        let directory = self.0;
-        let mut paths = spool::segments(directory).expect("segments");
-        paths.push(directory.join("active.jsonl"));
-        paths
+        self.files()
             .iter()
             .filter_map(|path| fs::metadata(path).ok())
             .map(|metadata| metadata.len())
