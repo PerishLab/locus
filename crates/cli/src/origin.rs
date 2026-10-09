@@ -32,8 +32,15 @@ pub struct Origin {
     producer: Option<String>,
 }
 
+const RETAINED: &str = "locus-retained-from";
+
+pub struct Opened {
+    pub reader: Box<dyn BufRead>,
+    pub retained: Option<u64>,
+}
+
 impl Origin {
-    pub fn open(&self) -> Result<Box<dyn BufRead>, String> {
+    pub fn open(&self) -> Result<Opened, String> {
         let api = &self.api;
         let mut request = ureq::get(format!("{}/api/v1/atoms", api.trim_end_matches('/')));
         for (name, value) in self.params()? {
@@ -46,12 +53,26 @@ impl Origin {
             .call()
             .map_err(|error| format!("cannot reach {api}: {error}"))?;
         let status = response.status();
+        let retained = response
+            .headers()
+            .get(RETAINED)
+            .map(|value| {
+                value
+                    .to_str()
+                    .ok()
+                    .and_then(|text| text.parse().ok())
+                    .ok_or_else(|| format!("api sent an invalid {RETAINED} header"))
+            })
+            .transpose()?;
         let mut body = response.into_body();
         if status != 200 {
             let detail = body.read_to_string().unwrap_or_default();
             return Err(format!("api refused with {status}: {}", detail.trim()));
         }
-        Ok(Box::new(BufReader::new(body.into_reader())))
+        Ok(Opened {
+            reader: Box::new(BufReader::new(body.into_reader())),
+            retained,
+        })
     }
 
     fn params(&self) -> Result<Vec<(&'static str, String)>, String> {

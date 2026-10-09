@@ -1,7 +1,8 @@
 use clap::{Args, Parser, Subcommand};
 use locus_api::drain::Drain;
 use locus_api::registry::Registry;
-use locus_api::server;
+use locus_api::retention::{self, Retention};
+use locus_api::server::{self, Shared};
 use locus_api::store::{Segments, Store};
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -77,12 +78,17 @@ fn run(serve: Serve) -> Result<(), String> {
     }
     let store: Arc<dyn Store> = Arc::new(Segments::open(home.join("store"))?);
     let registry = Arc::new(Registry::open(home.join("spools.json"))?);
+    let retention = Retention::read(&home)?;
     let drain = Drain::new(store.clone(), home.join("rejected"), registry.clone());
+    let kept = store.clone();
     let interval = Duration::from_millis(serve.interval);
     thread::spawn(move || {
         loop {
             if let Err(error) = drain.cycle() {
                 eprintln!("locus-api: drain: {error}");
+            }
+            if let Err(error) = retention.apply(kept.as_ref(), retention::now()) {
+                eprintln!("locus-api: retention: {error}");
             }
             thread::sleep(interval);
         }
@@ -95,7 +101,7 @@ fn run(serve: Serve) -> Result<(), String> {
         let shutdown = async {
             let _ = tokio::signal::ctrl_c().await;
         };
-        server::serve(listener, store, registry, shutdown)
+        server::serve(listener, Shared::new(store, registry, retention), shutdown)
             .await
             .map_err(|error| error.to_string())
     })

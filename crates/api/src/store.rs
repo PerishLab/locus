@@ -94,6 +94,7 @@ pub type Sink<'a> = dyn FnMut(&[u8]) -> Result<(), String> + 'a;
 pub trait Store: Send + Sync {
     fn append(&self, producer: &Producer, records: &[Record]) -> Result<(), String>;
     fn read(&self, filter: &Filter, sink: &mut Sink<'_>) -> Result<(), String>;
+    fn partitions(&self) -> Result<Vec<(Producer, u64)>, String>;
     fn expire(&self, producer: &Producer, day: u64) -> Result<(), String>;
 }
 
@@ -119,7 +120,7 @@ impl Segments {
             .join(format!("{}.jsonl", day::civil(day)))
     }
 
-    fn partitions(&self, filter: &Filter) -> Result<Vec<(u64, Producer, PathBuf)>, String> {
+    fn covered(&self, filter: &Filter) -> Result<Vec<(u64, Producer, PathBuf)>, String> {
         let mut partitions = Vec::new();
         for producer in listing(&self.root)? {
             let Ok(name) = Producer::new(&producer) else {
@@ -170,7 +171,7 @@ impl Store for Segments {
     }
 
     fn read(&self, filter: &Filter, sink: &mut Sink<'_>) -> Result<(), String> {
-        for (_, _, path) in self.partitions(filter)? {
+        for (_, _, path) in self.covered(filter)? {
             let file = File::open(&path)
                 .map_err(|error| format!("cannot open {}: {error}", path.display()))?;
             let mut reader = BufReader::new(file);
@@ -193,6 +194,14 @@ impl Store for Segments {
             }
         }
         Ok(())
+    }
+
+    fn partitions(&self) -> Result<Vec<(Producer, u64)>, String> {
+        Ok(self
+            .covered(&Filter::default())?
+            .into_iter()
+            .map(|(day, producer, _)| (producer, day))
+            .collect())
     }
 
     fn expire(&self, producer: &Producer, day: u64) -> Result<(), String> {

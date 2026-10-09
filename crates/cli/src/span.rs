@@ -15,9 +15,15 @@ pub struct Report {
     declarations: BTreeMap<String, Measure>,
     derived: Derived,
     records: u64,
+    retained: Option<u64>,
 }
 
 impl Report {
+    pub fn retained(mut self, retained: Option<u64>) -> Self {
+        self.retained = retained;
+        self
+    }
+
     pub fn records(&self) -> Vec<Record<'_>> {
         let mut records: Vec<Record<'_>> = self
             .declarations
@@ -46,6 +52,7 @@ impl Report {
             headless: self.derived.headless.len(),
             tangled: self.derived.tangles.len(),
             refused: self.derived.tangles.iter().map(|tangle| tangle.spans).sum(),
+            retained: self.retained,
         }));
         records
     }
@@ -66,6 +73,7 @@ pub fn scan(reader: impl BufRead) -> Result<Report, String> {
         declarations,
         derived,
         records,
+        retained: None,
     })
 }
 
@@ -99,4 +107,6 @@ pub struct Summary {
     headless: usize,
     tangled: usize,
     refused: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    retained: Option<u64>,
 }

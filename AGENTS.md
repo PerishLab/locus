@@ -78,6 +78,8 @@ and engine diagnostic handoff.
   and processes.
 - The CLI reads Atoms only from a `locus-api` read API, at `--api` (default
   `http://127.0.0.1:43308`), narrowed by its window, selector and producer.
+  When the server reports a retained boundary, every summary carries it as
+  `retained`, so a headless return can be read against it.
 - CLI inspection reads one root `locus.toml`, consumes that stream, and
   composes Locus-owned mappings with product-declared thresholds. It emits only
   domain-independent structural findings and an explicit coverage summary.
@@ -123,15 +125,22 @@ and engine diagnostic handoff.
     storing them, and removing them. Lines that are not Atoms are kept in `rejected/<producer>.jsonl`, never
     stored.
   - Store: append a batch of one producer's records; read by time window
-    `[from, to)` with an optional exact role/key and producer; drop one whole
-    producer-day partition. Reads return stored order within a partition and
+    `[from, to)` with an optional exact role/key and producer; list the
+    producer-day partitions it holds; drop one whole producer-day partition. Reads return stored order within a partition and
     partitions in day, then producer, order.
-  - Read API: `GET /api/v1/atoms` streams stored records as JSONL.
+  - Read API: `GET /api/v1/atoms` streams stored records as JSONL. With a
+    declared retention it names, in `locus-retained-from`, the instant before
+    which history is not retained.
     `locus-api export-openapi` and its snapshot test own the HTTP contract; the
     `--help` snapshots own both command surfaces.
 - Delivery is at least once: a crash between a store append and its offset
   record re-reads those lines.
 - The server listens on loopback only and carries no authentication yet.
+- Retention is declared only in `[retention] days` of `<home>/locus-api.toml`,
+  the server's standard config file; malformed config refuses at startup.
+  Undeclared, nothing is deleted. Declared, each drain cycle drops every
+  producer-day partition wholly before the current day minus `days`, through
+  the Store interface, so the rule holds whatever store sits behind it.
 
 ## Ownership
 

@@ -2,7 +2,8 @@ use locus::reporter;
 use locus::{Candidate, Config, Context, Engine, Policy};
 use locus_api::drain::Drain;
 use locus_api::registry::Registry;
-use locus_api::server;
+use locus_api::retention::Retention;
+use locus_api::server::{self, Shared};
 use locus_api::store::{Filter, Segments, Store};
 use serde_json::json;
 use std::fs;
@@ -82,9 +83,13 @@ fn served() {
             sender
                 .send(listener.local_addr().expect("address"))
                 .expect("send");
-            server::serve(listener, store, shared, std::future::pending())
-                .await
-                .expect("serve");
+            server::serve(
+                listener,
+                Shared::new(store, shared, Retention::default()),
+                std::future::pending(),
+            )
+            .await
+            .expect("serve");
         });
     });
     let endpoint = format!("http://{}", receiver.recv().expect("address"));
