@@ -1,10 +1,12 @@
 #![allow(dead_code)]
 
+#[path = "../stub/mod.rs"]
+pub(super) mod stub;
+
 use serde_json::{Value, json};
 use std::fs;
-use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output, Stdio};
+use std::process::{Command, Output};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub(super) const CONFIG: &str = r#"
@@ -89,21 +91,12 @@ pub(super) fn framed(at: u64, span: &str, edge: &str) -> String {
 }
 
 pub(super) fn run(root: &Root, input: &str) -> Output {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_locus"))
+    Command::new(env!("CARGO_BIN_EXE_locus"))
         .arg("inspect")
         .arg(root.path())
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .unwrap();
-    child
-        .stdin
-        .take()
+        .args(["--api", &stub::serve(input)])
+        .output()
         .unwrap()
-        .write_all(input.as_bytes())
-        .unwrap();
-    child.wait_with_output().unwrap()
 }
 
 pub(super) fn records(output: &Output) -> Vec<Value> {

@@ -1,9 +1,9 @@
 use locus::reporter;
 use locus::{Candidate, Config, Context, Engine, Policy};
+use locus_api::drain::Drain;
 use locus_api::registry::Registry;
 use locus_api::server;
 use locus_api::store::{Filter, Segments, Store};
-use locus_api::takeover::Takeover;
 use serde_json::json;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -11,11 +11,13 @@ use std::sync::{Arc, mpsc};
 use std::thread;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+const CLOSED: &str = "http://127.0.0.1:9";
+
 #[test]
 fn persisted() {
     let home = temp("persisted");
     let spool = home.join("spool");
-    drop(engine(reporter::Spec::spool(&spool, 1 << 30, 1_024)));
+    drop(engine(reporter::Spec::api(CLOSED, &spool)));
     let registry = Registry::open(home.join("spools.json")).expect("registry");
     assert!(registry.enroll("concord", &home).is_err());
     assert!(registry.enroll("Concord", &spool).is_err());
@@ -34,15 +36,24 @@ fn persisted() {
 fn drained() {
     let home = temp("drained");
     let spool = home.join("spool");
-    let engine = engine(reporter::Spec::spool(&spool, 1 << 30, 1_024));
+    let engine = engine(reporter::Spec::api(CLOSED, &spool));
     for sequence in 0..100 {
+        emit(&engine, sequence);
+    }
+    fs::rename(
+        spool.join("active.jsonl"),
+        spool.join("sealed-00000000000000000001.jsonl"),
+    )
+    .expect("seal");
+    for sequence in 100..110 {
         emit(&engine, sequence);
     }
     let registry = Arc::new(Registry::open(home.join("spools.json")).expect("registry"));
     registry.enroll("concord", &spool).expect("enroll");
     let store: Arc<dyn Store> = Arc::new(Segments::open(home.join("store")).expect("store"));
-    let takeover = Takeover::new(store.clone(), home.join("rejected")).registry(registry);
-    takeover.cycle().expect("cycle");
+    Drain::new(store.clone(), home.join("rejected"), registry)
+        .cycle()
+        .expect("cycle");
     let mut stored = 0;
     store
         .read(&Filter::default(), &mut |_| {
@@ -51,8 +62,8 @@ fn drained() {
         })
         .expect("read");
     let active = fs::read_to_string(spool.join("active.jsonl")).expect("active");
-    assert!(stored > 0);
-    assert_eq!(stored + active.lines().count(), 100);
+    assert_eq!(stored, 100);
+    assert_eq!(active.lines().count(), 10);
 }
 
 #[test]

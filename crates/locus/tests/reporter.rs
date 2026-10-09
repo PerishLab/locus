@@ -1,38 +1,112 @@
+use locus::reporter;
+use locus::{Candidate, Config, Context, Engine, Hook, Observation, Policy};
+use serde_json::{Value, json};
+use std::collections::BTreeSet;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+const CLOSED: &str = "http://127.0.0.1:9";
+
+#[derive(Default)]
+struct Capture {
+    codes: Mutex<Vec<String>>,
+}
+
+impl Hook for Capture {
+    fn observe(&self, observation: &Observation) {
+        if let Observation::Diagnostic(diagnostic) = observation {
+            self.codes
+                .lock()
+                .expect("capture")
+                .push(diagnostic.code().to_string());
+        }
+    }
+}
+
 #[cfg(unix)]
-mod unix {
-    use locus::reporter;
-    use locus::{Candidate, Config, Context, Engine, Policy};
-    use serde_json::json;
-    use std::fs;
+#[test]
+fn privacy() {
     use std::os::unix::fs::PermissionsExt;
-    use std::path::PathBuf;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
-    #[test]
-    fn privacy() {
-        let home = temp();
-        fs::create_dir(&home).expect("temp");
-        let path = home.join("atoms.jsonl");
-        let policy = Policy::default().reporter(reporter::Spec::file(&path));
-        let engine = Engine::bootstrap(Config::new(policy)).expect("bootstrap");
+    let spool = temp("privacy").join("spool");
+    emit(&engine(&spool), 0);
+    let mode = |path: &Path| fs::metadata(path).expect("metadata").permissions().mode() & 0o777;
+    assert_eq!(mode(&spool), 0o700);
+    assert_eq!(mode(&spool.join("active.jsonl")), 0o600);
+}
 
-        engine
-            .append(
-                &Context::empty(),
-                Candidate::event(json!({"event": "private"})),
-            )
-            .expect("append");
-
-        let mode = fs::metadata(&path).expect("metadata").permissions().mode() & 0o777;
-        assert_eq!(mode, 0o600);
-        fs::remove_dir_all(home).expect("cleanup");
+#[test]
+fn identity() {
+    let spool = temp("identity").join("spool");
+    let engine = engine(&spool);
+    for sequence in 0..50 {
+        emit(&engine, sequence);
     }
+    let atoms: Vec<Value> = fs::read_to_string(spool.join("active.jsonl"))
+        .expect("active")
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("whole record"))
+        .collect();
+    assert_eq!(atoms.len(), 50);
+    assert!(atoms.iter().all(|atom| atom["producer"] == "concord"));
+    let ids: BTreeSet<_> = atoms.iter().map(|atom| atom["id"].to_string()).collect();
+    assert_eq!(ids.len(), 50);
+}
 
-    fn temp() -> PathBuf {
-        let at = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .expect("clock")
-            .as_nanos();
-        std::env::temp_dir().join(format!("locus-report-{}-{at}", std::process::id()))
+#[test]
+fn refused() {
+    let directory = temp("refused");
+    let declarations = [
+        reporter::Spec::new("file", json!({"path": directory.join("a")})),
+        reporter::Spec::new(
+            "spool",
+            json!({"path": directory, "ceiling": 10, "segment": 1}),
+        ),
+        reporter::Spec::new(
+            "api",
+            json!({"endpoint": CLOSED, "path": directory, "ceiling": 10}),
+        ),
+        reporter::Spec::new("future", json!({})),
+    ];
+    for spec in declarations {
+        let capture = Arc::new(Capture::default());
+        let policy = Policy::default().producer("concord").reporter(spec);
+        let result = Engine::bootstrap(Config::new(policy).hook(capture.clone()));
+        assert!(result.is_err());
+        assert_eq!(
+            *capture.codes.lock().expect("capture"),
+            vec!["bootstrap.failed"]
+        );
     }
+}
+
+fn engine(spool: &Path) -> Engine {
+    let policy = Policy::default()
+        .producer("concord")
+        .reporter(reporter::Spec::api(CLOSED, spool));
+    Engine::bootstrap(Config::new(policy)).expect("engine")
+}
+
+fn emit(engine: &Engine, sequence: usize) {
+    engine
+        .append(
+            &Context::empty(),
+            Candidate::event(json!({"sequence": sequence})),
+        )
+        .expect("append");
+}
+
+fn temp(label: &str) -> PathBuf {
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("clock")
+        .as_nanos();
+    let path = std::env::temp_dir().join(format!(
+        "locus-reporter-{label}-{}-{stamp}",
+        std::process::id()
+    ));
+    fs::create_dir_all(&path).expect("temp");
+    path
 }

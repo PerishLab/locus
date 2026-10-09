@@ -1,22 +1,22 @@
 #[path = "inspect/fixture.rs"]
 mod fixture;
 
-use fixture::{CONFIG, Root, TIMED};
+use fixture::{CONFIG, Root, TIMED, stub};
 use locus::reporter;
 use locus::{Candidate, Config, Context, Engine, Policy, Role};
+use locus_api::drain::Drain;
 use locus_api::registry::Registry;
 use locus_api::server;
 use locus_api::store::{Segments, Store};
-use locus_api::takeover::{Source, Takeover};
 use serde_json::json;
 use std::fs;
-use std::io::Write;
 use std::path::Path;
-use std::process::{Command, Output, Stdio};
+use std::process::{Command, Output};
 use std::sync::Arc;
 use std::sync::mpsc;
 use std::thread;
-use std::time::Duration;
+
+const CLOSED: &str = "http://127.0.0.1:9";
 
 type View<'a> = Option<(&'a Engine, &'a Context)>;
 
@@ -56,7 +56,7 @@ fn selected() {
         "--select",
         &selector,
     ];
-    let output = locus(None, &args, "");
+    let output = locus(None, &args);
     let expected = served
         .sample
         .lines()
@@ -73,7 +73,7 @@ fn selected() {
 fn refused() {
     let served = launch();
     let args = ["span", "--api", &served.api, "--select", "locus.trace"];
-    let output = locus(None, &args, "");
+    let output = locus(None, &args);
     assert_eq!(output.status.code(), Some(2));
     assert!(output.stdout.is_empty());
 }
@@ -87,8 +87,11 @@ fn command(view: View<'_>, depth: usize) {
 }
 
 fn compare(root: Option<&Path>, args: &[&str], served: &Served) {
-    let local = locus(root, args, &served.sample);
-    let remote = locus(root, &[args, &["--api", &served.api]].concat(), "");
+    let local = locus(
+        root,
+        &[args, &["--api", &stub::serve(&served.sample)]].concat(),
+    );
+    let remote = locus(root, &[args, &["--api", &served.api]].concat());
     assert!(!local.stdout.is_empty(), "{args:?}");
     assert!(local.stderr.is_empty(), "{args:?}");
     assert_eq!(local.status.code(), remote.status.code(), "{args:?}");
@@ -96,27 +99,22 @@ fn compare(root: Option<&Path>, args: &[&str], served: &Served) {
     assert_eq!(local.stderr, remote.stderr, "{args:?}");
 }
 
-fn locus(root: Option<&Path>, args: &[&str], input: &str) -> Output {
+fn locus(root: Option<&Path>, args: &[&str]) -> Output {
     let mut args = args.to_vec();
     let root = root.map(|root| root.display().to_string());
     if let Some(root) = &root {
         args.insert(1, root);
     }
-    let mut child = Command::new(env!("CARGO_BIN_EXE_locus"))
+    Command::new(env!("CARGO_BIN_EXE_locus"))
         .args(&args)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("locus");
-    let mut stdin = child.stdin.take().expect("stdin");
-    stdin.write_all(input.as_bytes()).expect("input");
-    drop(stdin);
-    child.wait_with_output().expect("output")
+        .output()
+        .expect("locus")
 }
 
-fn record(report: &Path) {
-    let policy = Policy::default().reporter(reporter::Spec::file(report));
+fn record(spool: &Path) {
+    let policy = Policy::default()
+        .producer("concord")
+        .reporter(reporter::Spec::api(CLOSED, spool));
     let engine = Engine::bootstrap(Config::new(policy)).expect("engine");
     for run in 0..3 {
         let root = engine
@@ -138,17 +136,22 @@ fn record(report: &Path) {
 
 fn launch() -> Served {
     let home = Root::new(None);
-    let report = home.path().join("report.jsonl");
-    record(&report);
-    let sample = fs::read_to_string(&report).expect("sample");
+    let spool = home.path().join("spool");
+    record(&spool);
+    let sealed = spool.join("sealed-00000000000000000001.jsonl");
+    fs::rename(spool.join("active.jsonl"), &sealed).expect("seal");
+    let sample = fs::read_to_string(&sealed).expect("sample");
     let trace = first(&sample);
     let store: Arc<dyn Store> = Arc::new(Segments::open(home.path().join("store")).expect("store"));
-    let source = Source::new(&format!("concord={}", report.display())).expect("source");
-    let rejected = home.path().join("rejected");
-    let takeover =
-        Takeover::new(store.clone(), rejected).files(vec![source], Duration::from_secs(3_600));
-    takeover.cycle().expect("takeover");
     let registry = Arc::new(Registry::open(home.path().join("spools.json")).expect("registry"));
+    registry.enroll("concord", &spool).expect("enroll");
+    Drain::new(
+        store.clone(),
+        home.path().join("rejected"),
+        registry.clone(),
+    )
+    .cycle()
+    .expect("drain");
     let (sender, receiver) = mpsc::channel();
     thread::spawn(move || {
         let _home = home;

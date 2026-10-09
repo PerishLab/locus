@@ -1,6 +1,6 @@
 use super::Report;
 use crate::{Atom, Error};
-use serde_json::{Value, json};
+use serde_json::json;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -57,30 +57,6 @@ fn listed(directory: &Path, prefix: &str) -> io::Result<Vec<PathBuf>> {
 
 fn stamped(stamp: &str) -> bool {
     !stamp.is_empty() && stamp.bytes().all(|byte| byte.is_ascii_digit())
-}
-
-pub(super) fn build(options: &Value) -> Result<Box<dyn Report>, Error> {
-    let object = options
-        .as_object()
-        .filter(|object| object.len() == 3)
-        .ok_or_else(|| Error::config("spool reporter options do not match its schema"))?;
-    let directory = object
-        .get("path")
-        .and_then(Value::as_str)
-        .filter(|path| !path.is_empty())
-        .ok_or_else(|| Error::config("spool reporter requires path"))?;
-    let bound = |name: &str| {
-        object
-            .get(name)
-            .and_then(Value::as_u64)
-            .filter(|bytes| *bytes > 0)
-            .ok_or_else(|| Error::config(format!("spool reporter requires a positive {name}")))
-    };
-    let (ceiling, segment) = (bound("ceiling")?, bound("segment")?);
-    if segment > ceiling {
-        return Err(Error::config("spool segment exceeds its ceiling"));
-    }
-    Ok(Box::new(open(directory, ceiling, segment)?))
 }
 
 pub(super) fn open(directory: &str, ceiling: u64, segment: u64) -> Result<Spool, Error> {
@@ -283,3 +259,6 @@ fn now() -> u128 {
         .map(|duration| duration.as_nanos())
         .unwrap_or_default()
 }
+
+#[cfg(test)]
+mod tests;

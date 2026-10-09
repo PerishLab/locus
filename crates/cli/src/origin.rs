@@ -1,48 +1,40 @@
 use clap::Args;
-use std::io::{self, BufRead, BufReader};
+use std::io::{BufRead, BufReader};
 
 #[derive(Args)]
 pub struct Origin {
     #[arg(
         long,
         value_name = "URL",
-        help = "Read Atoms from a locus-api at this base URL instead of stdin"
+        default_value = "http://127.0.0.1:43308",
+        help = "Base URL of the locus-api to read Atoms from"
     )]
-    api: Option<String>,
+    api: String,
     #[arg(
         long,
         value_name = "NANOSECONDS",
-        requires = "api",
-        help = "With --api, keep Atoms at or after this instant (ns since epoch)"
+        help = "Keep Atoms at or after this instant (ns since epoch)"
     )]
     from: Option<u64>,
     #[arg(
         long,
         value_name = "NANOSECONDS",
-        requires = "api",
-        help = "With --api, keep Atoms before this instant (ns since epoch)"
+        help = "Keep Atoms before this instant (ns since epoch)"
     )]
     to: Option<u64>,
     #[arg(
         long,
         value_name = "ROLE=KEY",
-        requires = "api",
-        help = "With --api, keep Atoms whose Context binds ROLE to exactly KEY"
+        help = "Keep Atoms whose Context binds ROLE to exactly KEY"
     )]
     select: Option<String>,
-    #[arg(
-        long,
-        requires = "api",
-        help = "With --api, keep Atoms from this producer only"
-    )]
+    #[arg(long, help = "Keep Atoms from this producer only")]
     producer: Option<String>,
 }
 
 impl Origin {
     pub fn open(&self) -> Result<Box<dyn BufRead>, String> {
-        let Some(api) = &self.api else {
-            return Ok(Box::new(io::stdin().lock()));
-        };
+        let api = &self.api;
         let mut request = ureq::get(format!("{}/api/v1/atoms", api.trim_end_matches('/')));
         for (name, value) in self.params()? {
             request = request.query(name, value);

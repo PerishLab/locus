@@ -1,8 +1,8 @@
 use clap::{Args, Parser, Subcommand};
+use locus_api::drain::Drain;
 use locus_api::registry::Registry;
 use locus_api::server;
 use locus_api::store::{Segments, Store};
-use locus_api::takeover::{Source, Takeover};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -39,31 +39,10 @@ struct Serve {
     )]
     listen: SocketAddr,
     #[arg(
-        long = "source",
-        value_name = "PRODUCER=PATH",
-        value_parser = Source::new,
-        help = "Take over a product report file: PRODUCER=PATH (repeatable)"
-    )]
-    sources: Vec<Source>,
-    #[arg(
-        long = "spool",
-        value_name = "PRODUCER=DIRECTORY",
-        value_parser = Source::new,
-        help = "Drain a product's Locus spool directory: PRODUCER=DIRECTORY (repeatable)"
-    )]
-    spools: Vec<Source>,
-    #[arg(
-        long,
-        value_name = "SECONDS",
-        default_value_t = 600,
-        help = "Seconds a taken file must stay idle before it is removed"
-    )]
-    grace: u64,
-    #[arg(
         long,
         value_name = "MILLISECONDS",
         default_value_t = 1000,
-        help = "Milliseconds between takeover cycles"
+        help = "Milliseconds between drain cycles"
     )]
     interval: u64,
 }
@@ -98,15 +77,12 @@ fn run(serve: Serve) -> Result<(), String> {
     }
     let store: Arc<dyn Store> = Arc::new(Segments::open(home.join("store"))?);
     let registry = Arc::new(Registry::open(home.join("spools.json"))?);
-    let takeover = Takeover::new(store.clone(), home.join("rejected"))
-        .registry(registry.clone())
-        .files(serve.sources, Duration::from_secs(serve.grace))
-        .spools(serve.spools);
+    let drain = Drain::new(store.clone(), home.join("rejected"), registry.clone());
     let interval = Duration::from_millis(serve.interval);
     thread::spawn(move || {
         loop {
-            if let Err(error) = takeover.cycle() {
-                eprintln!("locus-api: takeover: {error}");
+            if let Err(error) = drain.cycle() {
+                eprintln!("locus-api: drain: {error}");
             }
             thread::sleep(interval);
         }

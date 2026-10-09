@@ -5,9 +5,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-const TAKEN: &str = ".taken.";
 const OFFSET: &str = ".offset";
 const BATCH: u64 = 8 * 1024 * 1024;
 
@@ -17,121 +15,23 @@ pub struct Source {
     pub path: PathBuf,
 }
 
-impl Source {
-    pub fn new(text: &str) -> Result<Self, String> {
-        let (producer, path) = text
-            .split_once('=')
-            .ok_or_else(|| format!("source {text:?} is not PRODUCER=PATH"))?;
-        if path.is_empty() {
-            return Err(format!("source {text:?} names no path"));
-        }
-        Ok(Self {
-            producer: Producer::new(producer)?,
-            path: PathBuf::from(path),
-        })
-    }
-
-    fn take(&self) -> Result<(), String> {
-        let path = &self.path;
-        match fs::metadata(path) {
-            Ok(metadata) if metadata.len() > 0 => {
-                let stamp = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .map_err(|error| error.to_string())?
-                    .as_nanos();
-                let target = sibling(path, &format!("{TAKEN}{stamp:020}"));
-                fs::rename(path, &target)
-                    .map_err(|error| format!("cannot take {}: {error}", path.display()))
-            }
-            Err(error) if error.kind() != io::ErrorKind::NotFound => {
-                Err(format!("cannot inspect {}: {error}", path.display()))
-            }
-            _ => Ok(()),
-        }
-    }
-
-    fn taken(&self) -> Result<Vec<PathBuf>, String> {
-        let path = &self.path;
-        let parent = path
-            .parent()
-            .filter(|parent| !parent.as_os_str().is_empty());
-        let parent = parent.unwrap_or(Path::new("."));
-        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
-            return Err(format!("source {} has no file name", path.display()));
-        };
-        let prefix = format!("{name}{TAKEN}");
-        let entries = match fs::read_dir(parent) {
-            Ok(entries) => entries,
-            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
-            Err(error) => return Err(format!("cannot list {}: {error}", parent.display())),
-        };
-        let mut paths = Vec::new();
-        for entry in entries {
-            let entry = entry.map_err(|error| error.to_string())?;
-            let file = entry.file_name();
-            let Some(file) = file.to_str() else { continue };
-            let stamped = file.strip_prefix(&prefix).is_some_and(|stamp| {
-                !stamp.is_empty() && stamp.bytes().all(|byte| byte.is_ascii_digit())
-            });
-            if stamped {
-                paths.push(entry.path());
-            }
-        }
-        paths.sort();
-        Ok(paths)
-    }
-}
-
-pub struct Takeover {
+pub struct Drain {
     store: Arc<dyn Store>,
     rejected: PathBuf,
-    files: Vec<Source>,
-    grace: Duration,
-    spools: Vec<Source>,
-    registry: Option<Arc<Registry>>,
+    registry: Arc<Registry>,
 }
 
-impl Takeover {
-    pub fn new(store: Arc<dyn Store>, rejected: PathBuf) -> Self {
+impl Drain {
+    pub fn new(store: Arc<dyn Store>, rejected: PathBuf, registry: Arc<Registry>) -> Self {
         Self {
             store,
             rejected,
-            files: Vec::new(),
-            grace: Duration::ZERO,
-            spools: Vec::new(),
-            registry: None,
+            registry,
         }
-    }
-
-    pub fn files(mut self, files: Vec<Source>, grace: Duration) -> Self {
-        self.files = files;
-        self.grace = grace;
-        self
-    }
-
-    pub fn spools(mut self, spools: Vec<Source>) -> Self {
-        self.spools = spools;
-        self
-    }
-
-    pub fn registry(mut self, registry: Arc<Registry>) -> Self {
-        self.registry = Some(registry);
-        self
     }
 
     pub fn cycle(&self) -> Result<(), String> {
-        for source in &self.files {
-            source.take()?;
-            for path in source.taken()? {
-                self.drain(source, &path)?;
-            }
-        }
-        let registered = self
-            .registry
-            .as_ref()
-            .map(|registry| registry.sources())
-            .unwrap_or_default();
-        for source in self.spools.iter().chain(&registered) {
+        for source in &self.registry.sources() {
             let claimed = spool::claim(&source.path)
                 .map_err(|error| format!("cannot claim {}: {error}", source.path.display()))?;
             for path in claimed {
@@ -139,21 +39,6 @@ impl Takeover {
                 fs::remove_file(&path).map_err(|error| error.to_string())?;
                 remove(&sibling(&path, OFFSET))?;
             }
-        }
-        Ok(())
-    }
-
-    fn drain(&self, source: &Source, path: &Path) -> Result<(), String> {
-        let offset = self.advance(source, path)?;
-        let metadata = fs::metadata(path).map_err(|error| error.to_string())?;
-        let idle = metadata
-            .modified()
-            .ok()
-            .and_then(|modified| modified.elapsed().ok())
-            .is_some_and(|elapsed| elapsed >= self.grace);
-        if idle && offset == metadata.len() {
-            fs::remove_file(path).map_err(|error| error.to_string())?;
-            remove(&sibling(path, OFFSET))?;
         }
         Ok(())
     }

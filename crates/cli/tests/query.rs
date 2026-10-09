@@ -1,6 +1,8 @@
+#[path = "stub/mod.rs"]
+mod stub;
+
 use serde_json::{Value, json};
-use std::io::Write;
-use std::process::{Command, Output, Stdio};
+use std::process::{Command, Output};
 
 fn atom(trace: Option<&str>, span: Option<&str>, payload: &str) -> String {
     let mut context = serde_json::Map::new();
@@ -20,20 +22,11 @@ fn atom(trace: Option<&str>, span: Option<&str>, payload: &str) -> String {
 }
 
 fn run(args: &[&str], input: &str) -> Output {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_locus"))
+    Command::new(env!("CARGO_BIN_EXE_locus"))
         .args(args)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("spawn");
-    child
-        .stdin
-        .take()
-        .expect("stdin")
-        .write_all(input.as_bytes())
-        .expect("write");
-    child.wait_with_output().expect("output")
+        .args(["--api", &stub::serve(input)])
+        .output()
+        .expect("output")
 }
 
 fn records(output: &Output) -> Vec<Value> {

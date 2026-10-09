@@ -1,6 +1,8 @@
+#[path = "stub/mod.rs"]
+mod stub;
+
 use serde_json::{Value, json};
-use std::io::Write;
-use std::process::{Command, Output, Stdio};
+use std::process::{Command, Output};
 
 fn atom(at: u64, span: &str, edge: &str, function: &str) -> String {
     json!({
@@ -20,20 +22,10 @@ fn atom(at: u64, span: &str, edge: &str, function: &str) -> String {
 }
 
 fn run(input: &str) -> Output {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_locus"))
-        .arg("span")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("spawn");
-    child
-        .stdin
-        .as_mut()
-        .expect("stdin")
-        .write_all(input.as_bytes())
-        .expect("write");
-    child.wait_with_output().expect("output")
+    Command::new(env!("CARGO_BIN_EXE_locus"))
+        .args(["span", "--api", &stub::serve(input)])
+        .output()
+        .expect("output")
 }
 
 fn records(output: &Output) -> Vec<Value> {

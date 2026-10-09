@@ -15,17 +15,18 @@ fn concurrency() {
     let home = temp();
     fs::create_dir(&home).expect("temp");
     let shared = home.join("trace.json");
-    let report = home.join("atoms.jsonl");
+    let spool = home.join("spool");
     let barrier = Arc::new(Barrier::new(WORKERS));
     let threads: Vec<_> = (0..WORKERS)
         .map(|worker| {
             let shared = shared.clone();
-            let report = report.clone();
+            let spool = spool.clone();
             let barrier = barrier.clone();
             thread::spawn(move || {
                 let policy = Policy::default()
                     .generator(Role::trace(), generator::Spec::shared(shared))
-                    .reporter(reporter::Spec::file(report));
+                    .producer("concord")
+                    .reporter(reporter::Spec::api("http://127.0.0.1:9", spool));
                 let engine = Engine::bootstrap(Config::new(policy)).expect("engine");
                 barrier.wait();
                 engine
@@ -46,7 +47,7 @@ fn concurrency() {
         thread.join().expect("worker");
     }
 
-    let text = fs::read_to_string(&report).expect("report");
+    let text = fs::read_to_string(spool.join("active.jsonl")).expect("report");
     let atoms: Vec<locus::Atom> = text
         .lines()
         .map(|line| serde_json::from_str(line).expect("complete Atom"))
