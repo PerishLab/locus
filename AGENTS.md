@@ -180,7 +180,7 @@ configuration file and hands the result to `Policy`.
 - `crates/cli` is the structural inspector and exact Atom query over the read API.
 - `crates/api` is the `locus-api` server: drain, store, registry, and the read API.
 - `packaging/deb` is the `locus-api` Debian placement: control, maintainer scripts, and `root/` payload.
-- `.runseal/hooks` carries the Plumb Guard Git hooks; `runseal.toml` is the Runseal profile.
+- Git hooks are not tracked: `plumb configuration install` writes the Plumb Guard hooks into Git's default hooks path. `runseal.toml` is the Runseal profile.
 
 ## Operating
 
