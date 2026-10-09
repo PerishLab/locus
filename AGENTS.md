@@ -173,7 +173,8 @@ configuration file and hands the result to `Policy`.
 - `crates/locus` is the engine and public substrate.
 - `crates/macro` is the source adapter and shares the exact release version.
 - `crates/cli` is the stdin-first structural inspector and exact Atom query.
-- `crates/api` is the `locus-api` server: takeover, store, and the read API.
+- `crates/api` is the `locus-api` server: takeover, store, registry, and the read API.
+- `packaging/deb` is the `locus-api` Debian placement: control, maintainer scripts, and `root/` payload.
 - `.runseal/hooks` carries the Plumb Guard Git hooks; `runseal.toml` is the Runseal profile.
 
 ## Operating
@@ -184,12 +185,18 @@ configuration file and hands the result to `Policy`.
 
 ## Release
 
-- Locus is a Cargo-only product. wharf publishes `locus-macro`, `locus`, and
-  `locus-cli` to the `perish` registry at `cargo.perish.uk`. It declares no
-  binaries and no skill, so it has no target matrix, archive, manager or skill
-  generation; its release authority carries the distribution record wharf
-  keeps for every marker. The `locus` command reaches an operator through `locus-cli`.
-  `locus-api` is not published yet.
+- wharf publishes `locus-macro`, `locus`, and `locus-cli` to the `perish`
+  registry at `cargo.perish.uk`; the `locus` command reaches an operator
+  through `locus-cli`. Locus declares no skill.
+- `locus-api` is the one declared binary, built for `x86_64-unknown-linux-gnu`
+  with `install = false`, and ships only as the Debian placement in
+  `packaging/deb` (`linux-x64-deb` in the seal; wharf keeps no apt
+  repository). The package carries `locus-api@.service`, which runs the
+  zero-flag server as `User=%i` with its home at that user's `.locus`, so it
+  reads the Locus buffers that user's products registered with that user's
+  permissions. Its maintainer scripts only reload systemd: they never enable,
+  start, restart, or delete data. An operator enables it per user with
+  `systemctl enable --now locus-api@<user>`.
 - A release follows Plumb's lifecycle (`plumb release --help`); wharf
   publishes the crates in dependency order and reads each one back from the
   index. A rerun publishes only what is missing.

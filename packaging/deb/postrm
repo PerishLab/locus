@@ -1,0 +1,15 @@
+#!/bin/sh
+# locus-api postrm: reload systemd after the unit goes away. It never deletes a
+# user's ~/.locus store or any product buffer; removing recorded data is a
+# deliberate operator action, not a package side effect.
+set -e
+
+case "$1" in
+remove | purge)
+    if [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1; then
+        systemctl daemon-reload || true
+    fi
+    ;;
+esac
+
+exit 0

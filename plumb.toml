@@ -10,6 +10,11 @@ path = ".cargo"
 note = "Cargo registry configuration."
 
 [[layout.seat]]
+path = "packaging/deb"
+anchor = ["control"]
+note = "The locus-api Debian placement wharf packs: control, maintainer scripts, and root/ payload."
+
+[[layout.seat]]
 path = ".runseal"
 note = "Committed inert Runseal resources."
 
@@ -20,7 +25,16 @@ note = "Rust workspace anchors."
 [release]
 product = "locus"
 authority = "https://releases.locus.perish.uk"
+binaries = ["locus-api"]
+targets = ["x86_64-unknown-linux-gnu"]
 skill = false
+
+[release.binary.locus-api]
+install = false
+
+[release.deb]
+binary = "locus-api"
+root = "packaging/deb"
 
 [release.cargo]
 registry = "perish"

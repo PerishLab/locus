@@ -1,0 +1,12 @@
+Package: locus-api
+Version: __VERSION__
+Architecture: amd64
+Maintainer: PerishLab <libertecode@proton.me>
+Section: admin
+Priority: optional
+Homepage: https://github.com/PerishLab/locus
+Description: Locus recording service
+ Records the Atoms Locus products hand off, faithfully, and serves them back
+ for query and bottleneck identification. Ships the `locus-api` server and the
+ locus-api@.service template, which drains the Locus buffers registered by
+ one user's products when enabled as locus-api@<user>.
