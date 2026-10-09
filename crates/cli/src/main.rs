@@ -39,6 +39,10 @@ enum Command {
 }
 
 fn main() -> ExitCode {
+    if let Err(error) = plumb::identity!("LOCUS") {
+        eprintln!("locus: {error}");
+        return ExitCode::from(1);
+    }
     match Cli::parse().command {
         Command::Inspect { root, origin } => inspect(root, &origin),
         Command::Query { role, key, origin } => query(role, key, &origin),
