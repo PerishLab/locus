@@ -3,8 +3,6 @@ use super::model::Threshold;
 use locus::Role;
 use serde::Deserialize;
 use std::collections::BTreeSet;
-use std::fs;
-use std::path::Path;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -44,16 +42,12 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn read(root: &Path) -> Result<Self, String> {
-        let path = root.join("locus.toml");
-        let content = fs::read_to_string(&path)
-            .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
-        let file: File = toml::from_str(&content)
-            .map_err(|error| format!("invalid {}: {error}", path.display()))?;
+    pub fn parse(name: &str, content: &str) -> Result<Self, String> {
+        let file: File =
+            toml::from_str(content).map_err(|error| format!("invalid {name}: {error}"))?;
         if file.version != 1 {
             return Err(format!(
-                "invalid {}: unsupported version {}",
-                path.display(),
+                "invalid {name}: unsupported version {}",
                 file.version
             ));
         }

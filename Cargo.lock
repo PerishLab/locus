@@ -1121,13 +1121,22 @@ dependencies = [
  "clap",
  "locus",
  "locus-api",
+ "locus-derivation",
  "plumb",
- "serde",
  "serde_json",
  "sha2",
  "tokio",
- "toml",
  "ureq",
+]
+
+[[package]]
+name = "locus-derivation"
+version = "0.0.0"
+dependencies = [
+ "locus",
+ "serde",
+ "serde_json",
+ "toml",
 ]
 
 [[package]]

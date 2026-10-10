@@ -2,12 +2,11 @@ mod config;
 mod mapping;
 mod model;
 
-use crate::input;
 use config::Analyzer;
 pub use config::Config;
+use locus::Atom;
 use mapping::{State, Unmeasured};
 use model::{Finding, Record, Summary};
-use std::io::BufRead;
 
 pub struct Report {
     findings: Vec<Finding>,
@@ -57,26 +56,47 @@ impl<'a> Runtime<'a> {
     }
 }
 
-pub fn scan(reader: impl BufRead, config: &Config) -> Result<Report, String> {
-    let mut runtimes = config
-        .analyzers()
-        .iter()
-        .map(Runtime::new)
-        .collect::<Vec<_>>();
-    let records = input::scan(reader, |atom, encoded| {
-        for runtime in &mut runtimes {
-            runtime.state.observe(&atom, encoded)?;
+pub struct Inspection<'a> {
+    config: &'a Config,
+    runtimes: Vec<Runtime<'a>>,
+    records: u64,
+}
+
+impl<'a> Inspection<'a> {
+    pub fn new(config: &'a Config) -> Self {
+        Self {
+            config,
+            runtimes: config.analyzers().iter().map(Runtime::new).collect(),
+            records: 0,
+        }
+    }
+
+    pub fn observe(&mut self, atom: &Atom, encoded: u64) -> Result<(), String> {
+        self.records = self
+            .records
+            .checked_add(1)
+            .ok_or_else(|| "Atom count overflowed".to_string())?;
+        for runtime in &mut self.runtimes {
+            runtime.state.observe(atom, encoded)?;
         }
         Ok(())
-    })?;
-    let mut findings = Vec::new();
-    let mut unmeasured = Unmeasured::default();
-    for runtime in runtimes {
-        let (found, dropped) = runtime.findings();
-        findings.extend(found);
-        unmeasured.absorb(dropped);
     }
-    findings.sort_by(|left, right| left.identity().cmp(&right.identity()));
-    let summary = Summary::new(config.coverage(), records, findings.len(), unmeasured);
-    Ok(Report { findings, summary })
+
+    pub fn finish(self) -> Report {
+        let mut findings = Vec::new();
+        let mut unmeasured = Unmeasured::default();
+        for runtime in self.runtimes {
+            let (found, dropped) = runtime.findings();
+            findings.extend(found);
+            unmeasured.absorb(dropped);
+        }
+        findings.sort_by(|left, right| left.identity().cmp(&right.identity()));
+        let summary = Summary::new(
+            self.config.coverage(),
+            self.records,
+            findings.len(),
+            unmeasured,
+        );
+        Report { findings, summary }
+    }
 }
