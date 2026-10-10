@@ -1,14 +1,14 @@
-mod derive;
 mod input;
-mod inspect;
 mod origin;
-mod query;
-mod span;
 
 use clap::{Parser, Subcommand};
+use locus_derivation::inspect::{Config, Inspection};
+use locus_derivation::query::{Query, Selector};
+use locus_derivation::span::Span;
 use origin::Origin;
+use std::fs;
 use std::io::{self, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 #[derive(Parser)]
@@ -51,7 +51,7 @@ fn main() -> ExitCode {
 }
 
 fn inspect(root: PathBuf, origin: &Origin) -> ExitCode {
-    let config = match inspect::Config::read(&root) {
+    let config = match read(&root) {
         Ok(config) => config,
         Err(error) => {
             eprintln!("locus: {error}");
@@ -65,14 +65,16 @@ fn inspect(root: PathBuf, origin: &Origin) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let report =
-        match inspect::scan(input.reader, &config).map(|report| report.retained(input.retained)) {
-            Ok(report) => report,
-            Err(error) => {
-                eprintln!("locus: {error}");
-                return ExitCode::from(2);
-            }
-        };
+    let mut inspection = Inspection::new(&config);
+    let report = match input::scan(input.reader, |atom, encoded| {
+        inspection.observe(&atom, encoded)
+    }) {
+        Ok(_) => inspection.finish().retained(input.retained),
+        Err(error) => {
+            eprintln!("locus: {error}");
+            return ExitCode::from(2);
+        }
+    };
     let output = io::stdout();
     let mut output = output.lock();
     for record in report.records() {
@@ -91,7 +93,7 @@ fn inspect(root: PathBuf, origin: &Origin) -> ExitCode {
 }
 
 fn query(role: String, key: Option<String>, origin: &Origin) -> ExitCode {
-    let selector = match query::Selector::new(role, key) {
+    let selector = match Selector::new(role, key) {
         Ok(selector) => selector,
         Err(error) => {
             eprintln!("locus: {error}");
@@ -105,14 +107,14 @@ fn query(role: String, key: Option<String>, origin: &Origin) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let report =
-        match query::scan(input.reader, selector).map(|report| report.retained(input.retained)) {
-            Ok(report) => report,
-            Err(error) => {
-                eprintln!("locus: {error}");
-                return ExitCode::from(2);
-            }
-        };
+    let mut query = Query::new(selector);
+    let report = match input::scan(input.reader, |atom, _| query.observe(atom)) {
+        Ok(_) => query.finish().retained(input.retained),
+        Err(error) => {
+            eprintln!("locus: {error}");
+            return ExitCode::from(2);
+        }
+    };
     let output = io::stdout();
     let mut output = output.lock();
     for record in report.records() {
@@ -134,8 +136,9 @@ fn span(origin: &Origin) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let report = match span::scan(input.reader).map(|report| report.retained(input.retained)) {
-        Ok(report) => report,
+    let mut span = Span::default();
+    let report = match input::scan(input.reader, |atom, _| span.observe(&atom)) {
+        Ok(_) => span.finish().retained(input.retained),
         Err(error) => {
             eprintln!("locus: {error}");
             return ExitCode::from(2);
@@ -152,4 +155,11 @@ fn span(origin: &Origin) -> ExitCode {
         }
     }
     ExitCode::SUCCESS
+}
+
+fn read(root: &Path) -> Result<Config, String> {
+    let path = root.join("locus.toml");
+    let content = fs::read_to_string(&path)
+        .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+    Config::parse(&path.display().to_string(), &content)
 }

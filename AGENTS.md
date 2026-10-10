@@ -76,7 +76,21 @@ and engine diagnostic handoff.
 - JSONL is the cold-start codec, not the permanent logical encoding.
 - The buffer preserves one encoded record boundary across concurrent engines
   and processes.
-- The CLI reads Atoms only from a `locus-api` read API, at `--api` (default
+- Derivation (query selection, span pairing, held time and crossing refusal,
+  inspect mappings, thresholds, coverage and summaries) lives in the
+  `locus-derivation` library, so any reader of Atoms answers with the same
+  law. It observes one Atom at a time and finishes into a report.
+  - Its input is one ordered, bounded sequence: within each span the entry
+    precedes the return, and refusal, headless returns and coverage are
+    defined over exactly that sequence, the read window. Records are counted
+    as observed.
+  - It assumes no representation. The `representation-bytes` mapping measures
+    the encoded size the caller passes with each Atom; the CLI passes the
+    JSONL line as read.
+  - A refusal is an error from observe; the caller then emits nothing.
+    Query by role and key holds its matching Atoms until the sequence ends,
+    because no partial output may precede a refusal.
+- The CLI is an adapter: it reads Atoms only from a `locus-api` read API, at `--api` (default
   `http://127.0.0.1:43308`), narrowed by its window, selector and producer.
   When the server reports a retained boundary, every summary carries it as
   `retained`, so a headless return can be read against it.
@@ -115,7 +129,7 @@ and engine diagnostic handoff.
 
 - `locus-api` records faithfully and derives nothing. It keeps every Atom it
   drains verbatim and returns stored records byte for byte; query, span, and
-  inspection stay in the CLI.
+  inspection derive downstream in `locus-derivation`.
 - Three interfaces are fixed; the internals behind them may change.
   - Handoff: a product's buffer registers itself through
     `POST /api/v1/spools` (a directory holding `spool.lock`), and the server
@@ -196,7 +210,8 @@ configuration file and hands the result to `Policy`.
 
 - `crates/locus` is the engine and public substrate.
 - `crates/macro` is the source adapter and shares the exact release version.
-- `crates/cli` is the structural inspector and exact Atom query over the read API.
+- `crates/derivation` is the derivation library over an ordered Atom sequence.
+- `crates/cli` is the `locus` command: it reads the read API, decodes JSONL and renders `crates/derivation` reports.
 - `crates/api` is the `locus-api` server: drain, column store and migration, registry, retention, and the read API.
 - `packaging/deb` is the `locus-api` Debian placement: control, maintainer scripts, and `root/` payload.
 - Git hooks are not tracked: `plumb configuration install` writes the Plumb Guard hooks into Git's default hooks path. `runseal.toml` is the Runseal profile.
@@ -209,9 +224,9 @@ configuration file and hands the result to `Policy`.
 
 ## Release
 
-- wharf publishes `locus-macro`, `locus`, and `locus-cli` to the `perish`
-  registry at `cargo.perish.uk`; the `locus` command reaches an operator
-  through `locus-cli`. Locus declares no skill.
+- wharf publishes `locus-macro`, `locus`, `locus-derivation`, and `locus-cli`
+  to the `perish` registry at `cargo.perish.uk`; the `locus` command reaches
+  an operator through `locus-cli`. Locus declares no skill.
 - `locus-api` is the one declared binary, built for `x86_64-unknown-linux-gnu`
   with `install = false`, and ships only as the Debian placement in
   `packaging/deb` (`linux-x64-deb` in the seal; wharf keeps no apt

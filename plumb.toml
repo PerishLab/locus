@@ -38,4 +38,4 @@ root = "packaging/deb"
 
 [release.cargo]
 registry = "perish"
-packages = ["locus-macro", "locus", "locus-cli"]
+packages = ["locus-macro", "locus", "locus-derivation", "locus-cli"]

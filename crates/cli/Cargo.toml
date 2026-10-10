@@ -14,10 +14,9 @@ path = "src/main.rs"
 [dependencies]
 clap = { workspace = true }
 locus = { workspace = true }
+locus-derivation = { workspace = true }
 plumb = { workspace = true }
-serde = { workspace = true }
 serde_json = { workspace = true }
-toml = { workspace = true }
 ureq = { workspace = true }
 
 [dev-dependencies]

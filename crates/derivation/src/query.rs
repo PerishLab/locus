@@ -1,8 +1,6 @@
-use crate::input;
 use locus::{Atom, Key, Role};
 use serde::Serialize;
 use std::collections::BTreeMap;
-use std::io::BufRead;
 
 const SCHEMA: &str = "locus.query/v1";
 
@@ -29,10 +27,7 @@ enum Projection {
 }
 
 pub struct Report {
-    selector: Selector,
-    projection: Projection,
-    records: u64,
-    matched: u64,
+    query: Query,
     retained: Option<u64>,
 }
 
@@ -43,14 +38,15 @@ impl Report {
     }
 
     pub fn records(&self) -> Vec<Record<'_>> {
-        let mut records: Vec<Record<'_>> = match &self.projection {
+        let query = &self.query;
+        let mut records: Vec<Record<'_>> = match &query.projection {
             Projection::Identities(identities) => identities
                 .iter()
                 .map(|(key, records)| {
                     Record::Identity(Identity {
                         schema: SCHEMA,
                         kind: "identity",
-                        role: self.selector.role.text(),
+                        role: query.selector.role.text(),
                         key,
                         records: *records,
                     })
@@ -62,8 +58,8 @@ impl Report {
                     Record::Atom(Match {
                         schema: SCHEMA,
                         kind: "atom",
-                        role: self.selector.role.text(),
-                        key: self.selector.key.as_ref().expect("atom query key").text(),
+                        role: query.selector.role.text(),
+                        key: query.selector.key.as_ref().expect("atom query key").text(),
                         atom,
                     })
                 })
@@ -72,10 +68,10 @@ impl Report {
         records.push(Record::Summary(Summary {
             schema: SCHEMA,
             kind: "summary",
-            role: self.selector.role.text(),
-            key: self.selector.key.as_ref().map(Key::text),
-            records: self.records,
-            matched: self.matched,
+            role: query.selector.role.text(),
+            key: query.selector.key.as_ref().map(Key::text),
+            records: query.records,
+            matched: query.matched,
             identities: self.identities(),
             retained: self.retained,
         }));
@@ -83,52 +79,73 @@ impl Report {
     }
 
     fn identities(&self) -> usize {
-        match &self.projection {
+        match &self.query.projection {
             Projection::Identities(identities) => identities.len(),
             Projection::Atoms(atoms) => usize::from(!atoms.is_empty()),
         }
     }
 }
 
-pub fn scan(reader: impl BufRead, selector: Selector) -> Result<Report, String> {
-    let mut projection = match selector.key {
-        Some(_) => Projection::Atoms(Vec::new()),
-        None => Projection::Identities(BTreeMap::new()),
-    };
-    let mut matched = 0_u64;
-    let records = input::scan(reader, |atom, _| {
-        let Some(key) = atom.context().get(selector.role.text()) else {
+pub struct Query {
+    selector: Selector,
+    projection: Projection,
+    records: u64,
+    matched: u64,
+}
+
+impl Query {
+    pub fn new(selector: Selector) -> Self {
+        let projection = match selector.key {
+            Some(_) => Projection::Atoms(Vec::new()),
+            None => Projection::Identities(BTreeMap::new()),
+        };
+        Self {
+            selector,
+            projection,
+            records: 0,
+            matched: 0,
+        }
+    }
+
+    pub fn observe(&mut self, atom: Atom) -> Result<(), String> {
+        self.records = self
+            .records
+            .checked_add(1)
+            .ok_or_else(|| "Atom count overflowed".to_string())?;
+        let Some(key) = atom.context().get(self.selector.role.text()) else {
             return Ok(());
         };
-        match &mut projection {
+        match &mut self.projection {
             Projection::Identities(identities) => {
                 let records = identities.entry(key.clone()).or_default();
                 *records = records
                     .checked_add(1)
                     .ok_or_else(|| "identity record count overflowed".to_string())?;
-                matched = matched
-                    .checked_add(1)
-                    .ok_or_else(|| "matched Atom count overflowed".to_string())?;
             }
             Projection::Atoms(atoms)
-                if selector.key.as_ref().is_some_and(|seen| seen.text() == key) =>
+                if self
+                    .selector
+                    .key
+                    .as_ref()
+                    .is_some_and(|seen| seen.text() == key) =>
             {
                 atoms.push(atom);
-                matched = matched
-                    .checked_add(1)
-                    .ok_or_else(|| "matched Atom count overflowed".to_string())?;
             }
-            Projection::Atoms(_) => {}
+            Projection::Atoms(_) => return Ok(()),
         }
+        self.matched = self
+            .matched
+            .checked_add(1)
+            .ok_or_else(|| "matched Atom count overflowed".to_string())?;
         Ok(())
-    })?;
-    Ok(Report {
-        selector,
-        projection,
-        records,
-        matched,
-        retained: None,
-    })
+    }
+
+    pub fn finish(self) -> Report {
+        Report {
+            query: self,
+            retained: None,
+        }
+    }
 }
 
 #[derive(Serialize)]

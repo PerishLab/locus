@@ -1,8 +1,7 @@
 use crate::derive::{Derived, Ledger, Orphan, SCHEMA, Tangle};
-use crate::input;
+use locus::Atom;
 use serde::Serialize;
 use std::collections::BTreeMap;
-use std::io::BufRead;
 
 #[derive(Default)]
 struct Measure {
@@ -58,23 +57,37 @@ impl Report {
     }
 }
 
-pub fn scan(reader: impl BufRead) -> Result<Report, String> {
-    let mut ledger = Ledger::grouped(None);
-    let records = input::scan(reader, |atom, _| ledger.observe(&atom))?;
-    let derived = ledger.finish();
-    let mut declarations: BTreeMap<String, Measure> = BTreeMap::new();
-    for held in &derived.held {
-        let measure = declarations.entry(held.declaration.clone()).or_default();
-        measure.spans += 1;
-        measure.inclusive += held.inclusive;
-        measure.held += held.held;
+#[derive(Default)]
+pub struct Span {
+    ledger: Ledger,
+    records: u64,
+}
+
+impl Span {
+    pub fn observe(&mut self, atom: &Atom) -> Result<(), String> {
+        self.records = self
+            .records
+            .checked_add(1)
+            .ok_or_else(|| "Atom count overflowed".to_string())?;
+        self.ledger.observe(atom)
     }
-    Ok(Report {
-        declarations,
-        derived,
-        records,
-        retained: None,
-    })
+
+    pub fn finish(self) -> Report {
+        let derived = self.ledger.finish();
+        let mut declarations: BTreeMap<String, Measure> = BTreeMap::new();
+        for held in &derived.held {
+            let measure = declarations.entry(held.declaration.clone()).or_default();
+            measure.spans += 1;
+            measure.inclusive += held.inclusive;
+            measure.held += held.held;
+        }
+        Report {
+            declarations,
+            derived,
+            records: self.records,
+            retained: None,
+        }
+    }
 }
 
 #[derive(Serialize)]
