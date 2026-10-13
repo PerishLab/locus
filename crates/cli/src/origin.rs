@@ -40,7 +40,8 @@ pub struct Opened {
 }
 
 impl Origin {
-    pub fn open(&self) -> Result<Opened, String> {
+    #[locus::trace(with = observer.map(crate::observation::Run::view))]
+    pub fn open(&self, observer: Option<&crate::observation::Run>) -> Result<Opened, String> {
         let api = &self.api;
         let mut request = ureq::get(format!("{}/api/v1/atoms", api.trim_end_matches('/')));
         for (name, value) in self.params()? {

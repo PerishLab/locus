@@ -22,8 +22,10 @@ note = "Committed inert Runseal resources."
 name = ["Cargo.toml", "Cargo.lock"]
 note = "Rust workspace anchors."
 
+[identity]
+ns = "locus"
+
 [release]
-product = "locus"
 authority = "https://releases.locus.perish.uk"
 binaries = ["locus-api"]
 targets = ["x86_64-unknown-linux-gnu"]

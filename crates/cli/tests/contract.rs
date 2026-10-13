@@ -1,7 +1,7 @@
 use sha2::{Digest, Sha256};
 use std::process::Command;
 
-const HELP: &str = "37a3f9637c98ae5f367aafed23c206e8c6c468cc6d91a41dbeecd6acf98c6138";
+const HELP: &str = "889a566147f00d8b954b736d55f92bbf692b3a19f624cfd005ff653c8878c58a";
 
 #[test]
 fn help() {

@@ -1,4 +1,5 @@
 mod input;
+mod observation;
 mod origin;
 
 use clap::{Parser, Subcommand};
@@ -12,7 +13,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 #[derive(Parser)]
-#[command(name = "locus", version = plumb::version!("LOCUS"))]
+#[command(name = "locus", version = plumb::version!("LOCUS"), after_help = "CLI observation is disabled by default. Set [locus] enabled = true in config.toml under ~/.locus on Unix or LOCALAPPDATA/locus on Windows. Buffered observations use state/locus there. endpoint in [locus] overrides LOCUS_API, then http://127.0.0.1:43308. The business --api option only chooses the read API; it does not select the observation endpoint. Observation failures preserve reports and exit codes.")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -43,14 +44,41 @@ fn main() -> ExitCode {
         eprintln!("locus: {error}");
         return ExitCode::from(1);
     }
-    match Cli::parse().command {
-        Command::Inspect { root, origin } => inspect(root, &origin),
-        Command::Query { role, key, origin } => query(role, key, &origin),
-        Command::Span { origin } => span(&origin),
+    let command = Cli::parse().command;
+    let observer = observation::Run::start(name(&command));
+    let code = execute(command, observer.as_ref());
+    if let Some(observer) = observer {
+        let number = if code == ExitCode::SUCCESS {
+            0
+        } else if code == ExitCode::from(1) {
+            1
+        } else {
+            2
+        };
+        observer.finish(number);
+    }
+    code
+}
+
+fn name(command: &Command) -> &'static str {
+    match command {
+        Command::Inspect { .. } => "inspect",
+        Command::Query { .. } => "query",
+        Command::Span { .. } => "span",
     }
 }
 
-fn inspect(root: PathBuf, origin: &Origin) -> ExitCode {
+#[locus::trace(with = observer.map(observation::Run::view))]
+fn execute(command: Command, observer: Option<&observation::Run>) -> ExitCode {
+    match command {
+        Command::Inspect { root, origin } => inspect(root, &origin, observer),
+        Command::Query { role, key, origin } => query(role, key, &origin, observer),
+        Command::Span { origin } => span(&origin, observer),
+    }
+}
+
+#[locus::trace(with = observer.map(observation::Run::view))]
+fn inspect(root: PathBuf, origin: &Origin, observer: Option<&observation::Run>) -> ExitCode {
     let config = match read(&root) {
         Ok(config) => config,
         Err(error) => {
@@ -58,7 +86,7 @@ fn inspect(root: PathBuf, origin: &Origin) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let input = match origin.open() {
+    let input = match origin.open(observer) {
         Ok(input) => input,
         Err(error) => {
             eprintln!("locus: {error}");
@@ -66,9 +94,11 @@ fn inspect(root: PathBuf, origin: &Origin) -> ExitCode {
         }
     };
     let mut inspection = Inspection::new(&config);
-    let report = match input::scan(input.reader, |atom, encoded| {
-        inspection.observe(&atom, encoded)
-    }) {
+    let report = match input::scan(
+        input.reader,
+        |atom, encoded| inspection.observe(&atom, encoded),
+        observer,
+    ) {
         Ok(_) => inspection.finish().retained(input.retained),
         Err(error) => {
             eprintln!("locus: {error}");
@@ -92,7 +122,13 @@ fn inspect(root: PathBuf, origin: &Origin) -> ExitCode {
     }
 }
 
-fn query(role: String, key: Option<String>, origin: &Origin) -> ExitCode {
+#[locus::trace(with = observer.map(observation::Run::view))]
+fn query(
+    role: String,
+    key: Option<String>,
+    origin: &Origin,
+    observer: Option<&observation::Run>,
+) -> ExitCode {
     let selector = match Selector::new(role, key) {
         Ok(selector) => selector,
         Err(error) => {
@@ -100,7 +136,7 @@ fn query(role: String, key: Option<String>, origin: &Origin) -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let input = match origin.open() {
+    let input = match origin.open(observer) {
         Ok(input) => input,
         Err(error) => {
             eprintln!("locus: {error}");
@@ -108,7 +144,7 @@ fn query(role: String, key: Option<String>, origin: &Origin) -> ExitCode {
         }
     };
     let mut query = Query::new(selector);
-    let report = match input::scan(input.reader, |atom, _| query.observe(atom)) {
+    let report = match input::scan(input.reader, |atom, _| query.observe(atom), observer) {
         Ok(_) => query.finish().retained(input.retained),
         Err(error) => {
             eprintln!("locus: {error}");
@@ -128,8 +164,9 @@ fn query(role: String, key: Option<String>, origin: &Origin) -> ExitCode {
     ExitCode::SUCCESS
 }
 
-fn span(origin: &Origin) -> ExitCode {
-    let input = match origin.open() {
+#[locus::trace(with = observer.map(observation::Run::view))]
+fn span(origin: &Origin, observer: Option<&observation::Run>) -> ExitCode {
+    let input = match origin.open(observer) {
         Ok(input) => input,
         Err(error) => {
             eprintln!("locus: {error}");
@@ -137,7 +174,7 @@ fn span(origin: &Origin) -> ExitCode {
         }
     };
     let mut span = Span::default();
-    let report = match input::scan(input.reader, |atom, _| span.observe(&atom)) {
+    let report = match input::scan(input.reader, |atom, _| span.observe(&atom), observer) {
         Ok(_) => span.finish().retained(input.retained),
         Err(error) => {
             eprintln!("locus: {error}");
