@@ -223,3 +223,51 @@ fn temp(label: &str) -> PathBuf {
     fs::create_dir_all(&path).expect("temp");
     path
 }
+
+#[test]
+fn aging() {
+    let directory = temp("aging");
+    let spool = open(directory.to_str().expect("utf8"), 1 << 30, 1 << 20).expect("spool");
+    emit(&spool, "single", 0);
+    let before = fs::read(directory.join("active.jsonl")).expect("active");
+    let now = SystemTime::now();
+    super::seal::expired(&directory, now).expect("young");
+    assert!(claim(&directory).expect("young claim").is_empty());
+    let future = now + std::time::Duration::from_secs(61);
+    let lock = super::Root(directory.clone())
+        .open("spool.lock", false)
+        .expect("lock");
+    lock.lock().expect("hold writer");
+    super::seal::expired(&directory, future).expect("busy writer");
+    assert!(segments(&directory).expect("segments").is_empty());
+    lock.unlock().expect("release writer");
+    super::seal::expired(&directory, future).expect("aged");
+    assert!(!directory.join("active.jsonl").exists());
+    assert_eq!(
+        super::counted(&lock).expect("count"),
+        Some(before.len() as u64)
+    );
+    let paths = claim(&directory).expect("claim");
+    assert_eq!(paths.len(), 1);
+    assert_eq!(fs::read(&paths[0]).expect("claimed"), before);
+    emit(&spool, "single", 1);
+    assert_eq!(fs::read(&paths[0]).expect("immutable"), before);
+    assert_eq!(
+        fs::read_to_string(directory.join("active.jsonl"))
+            .expect("new active")
+            .lines()
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn inactive() {
+    let directory = temp("inactive");
+    let future = SystemTime::now() + std::time::Duration::from_secs(61);
+    super::seal::expired(&directory.join("missing"), future).expect("missing");
+    fs::write(directory.join("active.jsonl"), "").expect("empty");
+    super::seal::expired(&directory, future).expect("empty");
+    assert!(claim(&directory).expect("claim").is_empty());
+    assert!(!directory.join("spool.lock").exists());
+}

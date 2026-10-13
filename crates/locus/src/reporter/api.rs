@@ -10,7 +10,6 @@ use std::time::Duration;
 
 const CEILING: u64 = 512 * 1024 * 1024;
 const SEGMENT: u64 = 16 * 1024 * 1024;
-const AGE: Duration = Duration::from_secs(60);
 const MARKER: &str = "registration";
 const SCHEME: &str = "http://";
 const CONNECT: Duration = Duration::from_millis(100);
@@ -35,7 +34,7 @@ pub(super) fn build(options: &Value) -> Result<Box<dyn Report>, Error> {
     };
     let endpoint = text("endpoint")?;
     authority(endpoint)?;
-    let spool = spool::open(text("path")?, CEILING, SEGMENT)?.aged(AGE);
+    let spool = spool::open(text("path")?, CEILING, SEGMENT)?.aged(spool::AGE);
     Ok(Box::new(Api {
         endpoint: endpoint.trim_end_matches('/').to_string(),
         spool,
