@@ -1,7 +1,8 @@
-use super::config::Analyzer;
+use super::config::{Analyzer, Config, Origin};
 use super::mapping::{Observation, Unmeasured};
 use locus::Role;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 const SCHEMA: &str = "locus.inspect/v1";
 
@@ -90,6 +91,7 @@ pub struct Summary {
     schema: &'static str,
     kind: &'static str,
     coverage: Vec<String>,
+    defaults: BTreeMap<String, Origin>,
     records: u64,
     findings: usize,
     #[serde(flatten)]
@@ -99,16 +101,12 @@ pub struct Summary {
 }
 
 impl Summary {
-    pub fn new(
-        coverage: Vec<String>,
-        records: u64,
-        findings: usize,
-        unmeasured: Unmeasured,
-    ) -> Self {
+    pub fn new(config: &Config, records: u64, findings: usize, unmeasured: Unmeasured) -> Self {
         Self {
             schema: SCHEMA,
             kind: "summary",
-            coverage,
+            coverage: config.coverage(),
+            defaults: config.defaults().clone(),
             records,
             findings,
             unmeasured,

@@ -33,8 +33,8 @@ pub struct Unmeasured {
 
 impl Unmeasured {
     pub fn absorb(&mut self, other: Self) {
-        self.refused += other.refused;
-        self.headless += other.headless;
+        self.refused = self.refused.max(other.refused);
+        self.headless = self.headless.max(other.headless);
     }
 }
 
