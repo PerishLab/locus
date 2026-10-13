@@ -55,8 +55,11 @@ and engine diagnostic handoff.
   that may be sealed and no file identity is needed. The sealed and claimed
   byte total lives in that lock file as an upper bound; a missing or stale
   total is recounted from the directory. Writers never lock a sealed or
-  claimed segment, so a consumer never blocks the observed product. A consumer
-  claims sealed segments by renaming them to `claimed-*`, then stores and
+  claimed segment, so storing claimed records never blocks the observed product.
+  Before claiming, a consumer may seal an aged active segment under a
+  nonblocking attempt on the publication lock; a busy writer postpones sealing
+  to the next cycle. This lock is released before records are read or stored.
+  A consumer claims sealed segments by renaming them to `claimed-*`, then stores and
   removes them; writers never touch a claimed segment.
 - A product reports to `locus-api` by declaring the `api` reporter with only
   an endpoint and a buffer directory. Locus buffers through the spool contract

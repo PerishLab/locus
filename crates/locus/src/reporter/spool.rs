@@ -7,6 +7,10 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+mod seal;
+
+pub(super) const AGE: Duration = Duration::from_secs(60);
+
 const ACTIVE: &str = "active.jsonl";
 const LEDGER: &str = "loss.jsonl";
 const LOCK: &str = "spool.lock";
@@ -19,6 +23,7 @@ pub fn segments(directory: &Path) -> io::Result<Vec<PathBuf>> {
 }
 
 pub fn claim(directory: &Path) -> io::Result<Vec<PathBuf>> {
+    seal::expired(directory, SystemTime::now())?;
     for path in listed(directory, SEALED)? {
         let name = path
             .file_name()
