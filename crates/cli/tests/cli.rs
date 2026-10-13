@@ -1,7 +1,7 @@
 #[path = "inspect/fixture.rs"]
 mod fixture;
 
-use fixture::{CONFIG, Root, atom, records, run};
+use fixture::{CONFIG, DEFAULTS, Root, atom, records, run};
 use serde_json::{Value, json};
 
 #[test]
@@ -16,10 +16,9 @@ fn clean() {
     let records = records(&output);
     assert_eq!(records.len(), 1);
     assert_eq!(records[0]["kind"], "summary");
-    assert_eq!(
-        records[0]["coverage"],
-        json!(["trace.size", "trace.prefix"])
-    );
+    assert_eq!(records[0]["coverage"], json!(DEFAULTS));
+    assert_eq!(records[0]["defaults"]["trace.size"], "overridden");
+    assert_eq!(records[0]["defaults"]["span.held"], "default");
     assert_eq!(records[0]["records"], 4);
     assert_eq!(records[0]["findings"], 0);
 }
@@ -95,11 +94,12 @@ fn untraced() {
 
 #[test]
 fn coverage() {
-    let root = Root::new(Some("version = 1\n"));
-    let output = run(&root, &atom(Some("trace"), json!("value")));
+    let root = Root::new(Some("version = 1\ndisable = [\"trace.size\"]\n"));
+    let output = run(&root, &atom(Some("trace"), json!("x".repeat(9_000))));
     assert_eq!(output.status.code(), Some(0));
     let records = records(&output);
-    assert_eq!(records[0]["coverage"], json!([]));
+    assert_eq!(records[0]["coverage"], json!(DEFAULTS[1..]));
+    assert_eq!(records[0]["defaults"]["trace.size"], "disabled");
     assert_eq!(records[0]["records"], 1);
 }
 
@@ -114,7 +114,9 @@ fn threshold() {
 
 #[test]
 fn role() {
-    let config = CONFIG.replace("locus.trace", "agent.cycle");
+    let config = CONFIG
+        .replace("locus.trace", "agent.cycle")
+        .replace("\"trace.", "\"cycle.");
     let root = Root::new(Some(&config));
     let mut input: Value = serde_json::from_str(&atom(None, json!("x".repeat(9_000)))).unwrap();
     input["context"]["agent.cycle"] = json!("cycle");
@@ -128,13 +130,12 @@ fn role() {
 #[test]
 fn missing() {
     let root = Root::new(None);
-    let output = run(&root, "");
-    assert_eq!(output.status.code(), Some(2));
-    assert!(
-        String::from_utf8(output.stderr)
-            .unwrap()
-            .starts_with("locus: cannot read ")
-    );
+    let output = run(&root, &atom(Some("trace"), json!("x".repeat(9_000))));
+    assert_eq!(output.status.code(), Some(1));
+    let records = records(&output);
+    assert_eq!(records[0]["analyzer"], "trace.size");
+    assert_eq!(records[0]["threshold"]["above"], 8192);
+    assert_eq!(records[1]["coverage"], json!(DEFAULTS));
 }
 
 #[test]

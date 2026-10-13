@@ -91,12 +91,7 @@ impl<'a> Inspection<'a> {
             unmeasured.absorb(dropped);
         }
         findings.sort_by(|left, right| left.identity().cmp(&right.identity()));
-        let summary = Summary::new(
-            self.config.coverage(),
-            self.records,
-            findings.len(),
-            unmeasured,
-        );
+        let summary = Summary::new(self.config, self.records, findings.len(), unmeasured);
         Report { findings, summary }
     }
 }

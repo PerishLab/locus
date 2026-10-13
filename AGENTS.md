@@ -97,14 +97,23 @@ and engine diagnostic handoff.
   `http://127.0.0.1:43308`), narrowed by its window, selector and producer.
   When the server reports a retained boundary, every summary carries it as
   `retained`, so a headless return can be read against it.
-- CLI inspection reads one root `locus.toml`, consumes that stream, and
-  composes Locus-owned mappings with product-declared thresholds. It emits only
+- Inspection runs Locus's default analyzers unless a product turns them off:
+  `trace.size`, `trace.prefix`, `trace.held`, `span.size`, `span.prefix` and
+  `span.held`, each with a coarse threshold that only an unambiguous excess
+  crosses. What to inspect is Locus's; how strictly is the product's.
+- CLI inspection reads an optional root `locus.toml` and consumes that stream.
+  A product redeclares a default analyzer with the same mapping to set its
+  threshold, lists it under `disable` to turn it off, and declares new
+  analyzers after the defaults; a redeclaration with another mapping, or one
+  that is also disabled, refuses. Without the file the defaults run as they
+  are. The summary names each default's origin. It emits only
   domain-independent structural findings and an explicit coverage summary.
   Malformed declaration or input refuses without partial output. It never
   changes Atom acceptance or attributes a finding to a cause. The held
   time mapping runs the span derivation, refuses the same crossings, and counts
-  the refused spans in its summary; it groups by the entering record's own
-  Context and never inherits a key from an enclosing frame.
+  the refused spans once in its summary, however many held analyzers run; it
+  groups by the entering record's own Context and never inherits a key from an
+  enclosing frame.
 - CLI query selects one exact role with an optional exact key. It enumerates identities or replays matching logical
   Atoms, then reports complete coverage without inferring lifecycle, ownership,
   causality, or liveness.
@@ -173,9 +182,10 @@ and engine diagnostic handoff.
 
 Locus owns Context and Atom laws, collector and generator algorithms, reporter
 execution and buffer bounds, config gates, hooks, diagnostic handoff, inspect
-mappings, query selection, and threshold mechanics. Products own collector
-selection and binding, their event vocabulary, logical cycles, analyzer
-identities and thresholds, the endpoint they report to and the buffer
+mappings, the default analyzers and their thresholds, query selection, and
+threshold mechanics. Products own collector selection and binding, their
+event vocabulary, logical cycles, threshold overrides, disabled defaults and
+added analyzers, the endpoint they report to and the buffer
 directory under their own state, and consumption policy. `locus-api` owns
 where records go and how long they stay. Locus is a library: it reads neither
 configuration files nor the environment; a product reads its own standard

@@ -158,8 +158,13 @@ fn span(origin: &Origin) -> ExitCode {
 }
 
 fn read(root: &Path) -> Result<Config, String> {
+    if !root.is_dir() {
+        return Err(format!("cannot read {}: not a directory", root.display()));
+    }
     let path = root.join("locus.toml");
-    let content = fs::read_to_string(&path)
-        .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
-    Config::parse(&path.display().to_string(), &content)
+    match fs::read_to_string(&path) {
+        Ok(content) => Config::parse(&path.display().to_string(), &content),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(Config::default()),
+        Err(error) => Err(format!("cannot read {}: {error}", path.display())),
+    }
 }

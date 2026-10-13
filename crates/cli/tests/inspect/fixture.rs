@@ -32,6 +32,15 @@ mapping = { kind = "held-time-nanoseconds", group = "locus.trace" }
 threshold = { above = 5 }
 "#;
 
+pub(super) const DEFAULTS: [&str; 6] = [
+    "trace.size",
+    "trace.prefix",
+    "trace.held",
+    "span.size",
+    "span.prefix",
+    "span.held",
+];
+
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 pub(super) struct Root(PathBuf);
