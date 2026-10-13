@@ -1,3 +1,4 @@
+mod observation;
 use clap::{Args, Parser, Subcommand};
 use locus_api::column::Columns;
 use locus_api::drain::Drain;
@@ -14,7 +15,7 @@ use std::thread;
 use std::time::Duration;
 
 #[derive(Parser)]
-#[command(name = "locus-api", version = plumb::version!("LOCUS"))]
+#[command(name = "locus-api", version = plumb::version!("LOCUS"), after_help = "Only export-openapi CLI observation is supported, off by default. Set [locus] enabled = true in config.toml under the platform .locus home, separate from locus-api.toml server retention. Buffer is state/locus; endpoint overrides LOCUS_API, then http://127.0.0.1:43308. Serving does not initialize an observer.")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -64,7 +65,11 @@ fn main() -> ExitCode {
             }
         },
         Command::Openapi => {
-            println!("{}", server::document());
+            let observer = observation::Run::start("api.export-openapi");
+            export(observer.as_ref());
+            if let Some(observer) = observer {
+                observer.finish(0);
+            }
             ExitCode::SUCCESS
         }
     }
@@ -117,4 +122,9 @@ fn run(serve: Serve) -> Result<(), String> {
             .await
             .map_err(|error| error.to_string())
     })
+}
+
+#[locus::trace(with = observer.map(observation::Run::view))]
+fn export(observer: Option<&observation::Run>) {
+    println!("{}", server::document());
 }
