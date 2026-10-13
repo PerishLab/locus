@@ -9,7 +9,7 @@ description = "Faithful Atom recording and retrieval service for Locus"
 
 [[bin]]
 name = "locus-api"
-path = "src/main.rs"
+path = "src/entry/main.rs"
 
 [dependencies]
 axum = { workspace = true }
