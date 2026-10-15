@@ -133,4 +133,5 @@ fn serving() {
     assert_eq!(out.status.code(), Some(2));
     assert!(!String::from_utf8_lossy(&out.stderr).contains("observation"));
     assert!(!n.seat().join("state/locus").exists());
+    assert!(!n.seat().join("state/locus-api").exists());
 }

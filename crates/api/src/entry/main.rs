@@ -1,12 +1,12 @@
+mod cycle;
 mod doctor;
 mod home;
 mod observation;
 use clap::{Args, Parser, Subcommand};
 use locus_api::column::Columns;
 use locus_api::drain::Drain;
-use locus_api::migrate;
 use locus_api::registry::Registry;
-use locus_api::retention::{self, Retention};
+use locus_api::retention::Retention;
 use locus_api::server::{self, Shared};
 use locus_api::store::Store;
 use std::net::SocketAddr;
@@ -17,7 +17,7 @@ use std::thread;
 use std::time::Duration;
 
 #[derive(Parser)]
-#[command(name = "locus-api", version = plumb::version!("LOCUS"), after_help = "Only export-openapi CLI observation is supported, off by default. Set [locus] enabled = true in config.toml under the platform .locus home, separate from locus-api.toml server retention. Buffer is state/locus; endpoint overrides LOCUS_API, then http://127.0.0.1:43308. Serving does not initialize an observer.")]
+#[command(name = "locus-api", version = plumb::version!("LOCUS"), after_help = "Observation is off by default. Set [locus] enabled = true in config.toml under the platform .locus home, separate from locus-api.toml server retention. export-openapi buffers to state/locus there and registers it with endpoint, else LOCUS_API, else http://127.0.0.1:43308. serve records its migrate, drain, seal and retention cycles into state/locus-api under --home and never registers that buffer with any endpoint, so its own records never re-enter its drain. Observation failures go to stderr and never change output, exit status or serving.")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -127,28 +127,23 @@ fn run(serve: Serve) -> Result<(), String> {
     let runtime = tokio::runtime::Runtime::new().map_err(|error| error.to_string())?;
     let columns = runtime.block_on(Columns::open(&home, runtime.handle().clone()))?;
     let store: Arc<dyn Store> = Arc::new(columns);
+    let observer = observation::Watch::start(home.join("state/locus-api"));
     let legacy = home.join("store");
     if legacy.is_dir() {
-        let days = migrate::migrate(&legacy, store.as_ref())?;
-        eprintln!("locus-api: migrated {days} stored day(s) into the column store");
+        cycle::migrate(observer.as_ref(), &legacy, store.as_ref())?;
     }
     let registry = Arc::new(Registry::open(home.join("spools.json"))?);
     let retention = Retention::read(&home)?;
-    let drain = Drain::new(store.clone(), home.join("rejected"), registry.clone());
-    let kept = store.clone();
+    let work = cycle::Cycle {
+        drain: Drain::new(store.clone(), home.join("rejected"), registry.clone()),
+        store: store.clone(),
+        retention,
+        observer,
+    };
     let interval = Duration::from_millis(serve.interval);
     thread::spawn(move || {
         loop {
-            if let Err(error) = drain.cycle() {
-                eprintln!("locus-api: drain: {error}");
-            }
-            let now = retention::now();
-            if let Err(error) = kept.tick(now) {
-                eprintln!("locus-api: seal: {error}");
-            }
-            if let Err(error) = retention.apply(kept.as_ref(), now) {
-                eprintln!("locus-api: retention: {error}");
-            }
+            work.turn();
             thread::sleep(interval);
         }
     });

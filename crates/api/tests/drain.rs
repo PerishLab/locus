@@ -25,7 +25,8 @@ fn drained() {
     let (store, drain) = setup(&home, &spool);
     spool.emit(0..100);
     spool.seal();
-    drain.cycle().expect("cycle");
+    let tally = drain.cycle().expect("cycle");
+    assert_eq!((tally.sources, tally.segments, tally.records), (1, 1, 100));
     spool.emit(100..200);
     spool.seal();
     spool.emit(200..210);
@@ -75,8 +76,9 @@ fn malformed() {
         .and_then(|mut file| file.write_all(b"{\"not\":\"an atom\"}\n"))
         .expect("append");
     spool.seal();
-    drain.cycle().expect("cycle");
+    let tally = drain.cycle().expect("cycle");
 
+    assert_eq!((tally.records, tally.rejected), (2, 1));
     assert_eq!(stored(store.as_ref()).len(), 2);
     let rejected =
         fs::read_to_string(home.join("rejected").join("concord.jsonl")).expect("rejected");

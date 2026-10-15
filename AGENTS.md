@@ -193,6 +193,17 @@ and engine diagnostic handoff.
   left by an earlier server is migrated at startup, one day at a time, and a
   day file is removed only after it reads back byte for byte.
 - The server listens on loopback only and carries no authentication yet.
+- `locus-api` observes itself through Locus, never through tracing
+  subscribers. The `[locus] enabled` switch in `config.toml` under the
+  platform `.locus` home, the same gate `export-openapi` reads and separate
+  from `locus-api.toml`, turns it on; off is the default. `serve` then records
+  startup migrate and each drain, seal and retention as traced spans with
+  their countable facts (drain sources, segments, records and rejected lines;
+  migrated days; the declared days and retain floor; each step's outcome) into
+  `<home>/state/locus-api`, an `api` buffer whose endpoint is never a server.
+  That buffer is never registered, so the server's own records never pass its
+  `POST /api/v1/spools` or drain, whatever endpoint `[locus]` names. Observation
+  failures reach stderr and never change a cycle's result or stop `serve`.
 - Retention is declared only in `[retention] days` of `<home>/locus-api.toml`,
   the server's standard config file; malformed config refuses at startup.
   Undeclared, nothing is deleted. Declared, each drain cycle drops every
