@@ -30,6 +30,14 @@ pub struct Origin {
     select: Option<String>,
     #[arg(long, help = "Keep Atoms from this producer only")]
     producer: Option<String>,
+    #[arg(
+        long,
+        value_name = "TOKEN",
+        env = "LOCUS_API_TOKEN",
+        hide_env_values = true,
+        help = "Bearer token of a reader declared in the locus-api's locus-api.toml"
+    )]
+    token: Option<String>,
 }
 
 const RETAINED: &str = "locus-retained-from";
@@ -46,6 +54,9 @@ impl Origin {
         let mut request = ureq::get(format!("{}/api/v1/atoms", api.trim_end_matches('/')));
         for (name, value) in self.params()? {
             request = request.query(name, value);
+        }
+        if let Some(token) = &self.token {
+            request = request.header("authorization", format!("Bearer {token}"));
         }
         let response = request
             .config()

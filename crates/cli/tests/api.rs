@@ -4,6 +4,7 @@ mod fixture;
 use fixture::{CONFIG, Root, TIMED, stub};
 use locus::reporter;
 use locus::{Candidate, Config, Context, Engine, Policy, Role};
+use locus_api::access::{self, Readers};
 use locus_api::drain::Drain;
 use locus_api::registry::Registry;
 use locus_api::retention::Retention;
@@ -165,6 +166,10 @@ fn record(spool: &Path) {
 }
 
 fn launch(retention: Retention) -> Served {
+    guarded(retention, Readers::default())
+}
+
+fn guarded(retention: Retention, readers: Readers) -> Served {
     let home = Root::new(None);
     let spool = home.path().join("spool");
     record(&spool);
@@ -194,7 +199,7 @@ fn launch(retention: Retention) -> Served {
                 .expect("send");
             server::serve(
                 listener,
-                Shared::new(store, registry, retention),
+                Shared::new(store, registry, retention).readers(readers),
                 std::future::pending(),
             )
             .await
@@ -217,4 +222,38 @@ fn first(sample: &str) -> String {
         .as_str()
         .expect("trace")
         .to_string()
+}
+
+#[test]
+fn token() {
+    let readers = Readers::default()
+        .with("liberte", &access::digest("alpha"))
+        .expect("reader");
+    let served = guarded(Retention::default(), readers);
+    let query = |extra: &[&str], env: Option<&str>| {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_locus"));
+        command
+            .args(["query", "locus.trace", "--api", &served.api])
+            .args(extra)
+            .env_remove("LOCUS_API_TOKEN");
+        if let Some(token) = env {
+            command.env("LOCUS_API_TOKEN", token);
+        }
+        command.output().expect("locus")
+    };
+    for output in [
+        query(&["--token", "alpha"], None),
+        query(&[], Some("alpha")),
+    ] {
+        assert_eq!(output.status.code(), Some(0), "{output:?}");
+        assert!(String::from_utf8_lossy(&output.stdout).contains(&served.trace));
+    }
+    for output in [query(&[], None), query(&["--token", "wrong"], None)] {
+        let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+        assert_ne!(output.status.code(), Some(0));
+        assert!(
+            stderr.contains("401") && !stderr.contains("wrong"),
+            "{stderr}"
+        );
+    }
 }

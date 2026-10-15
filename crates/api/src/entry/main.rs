@@ -3,6 +3,7 @@ mod doctor;
 mod home;
 mod observation;
 use clap::{Args, Parser, Subcommand};
+use locus_api::access::Readers;
 use locus_api::column::Columns;
 use locus_api::drain::Drain;
 use locus_api::registry::Registry;
@@ -134,6 +135,7 @@ fn run(serve: Serve) -> Result<(), String> {
     }
     let registry = Arc::new(Registry::open(home.join("spools.json"))?);
     let retention = Retention::read(&home)?;
+    let readers = Readers::read(&home)?;
     let work = cycle::Cycle {
         drain: Drain::new(store.clone(), home.join("rejected"), registry.clone()),
         store: store.clone(),
@@ -154,9 +156,13 @@ fn run(serve: Serve) -> Result<(), String> {
         let shutdown = async {
             let _ = tokio::signal::ctrl_c().await;
         };
-        server::serve(listener, Shared::new(store, registry, retention), shutdown)
-            .await
-            .map_err(|error| error.to_string())
+        server::serve(
+            listener,
+            Shared::new(store, registry, retention).readers(readers),
+            shutdown,
+        )
+        .await
+        .map_err(|error| error.to_string())
     })
 }
 

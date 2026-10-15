@@ -1,9 +1,10 @@
+use crate::access::Readers;
 use crate::registry::Registry;
 use crate::retention::{self, Retention};
 use crate::store::{Filter, Producer, Store, Window};
 use axum::body::{Body, Bytes};
 use axum::extract::{Query, State};
-use axum::http::{HeaderValue, StatusCode, header};
+use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -48,6 +49,7 @@ pub struct Shared {
     store: Arc<dyn Store>,
     registry: Arc<Registry>,
     retention: Retention,
+    readers: Readers,
 }
 
 impl Shared {
@@ -56,7 +58,13 @@ impl Shared {
             store,
             registry,
             retention,
+            readers: Readers::default(),
         }
+    }
+
+    pub fn readers(mut self, readers: Readers) -> Self {
+        self.readers = readers;
+        self
     }
 }
 
@@ -76,6 +84,12 @@ pub enum Stream {
         description = "The window, selector or producer is invalid"
     )]
     Invalid(#[to_schema] Fault),
+    #[response(
+        status = 401,
+        description = "Readers are declared and the request carries no matching Bearer token",
+        headers(("www-authenticate" = String, description = "Bearer"))
+    )]
+    Unauthorized(#[to_schema] Fault),
 }
 
 #[derive(Deserialize, IntoParams)]
@@ -156,7 +170,22 @@ async fn health() -> Json<Health> {
 }
 
 #[utoipa::path(get, path = "/api/v1/atoms", params(Params), responses(Stream))]
-async fn atoms(State(shared): State<Shared>, Query(params): Query<Params>) -> Response {
+async fn atoms(
+    State(shared): State<Shared>,
+    headers: HeaderMap,
+    Query(params): Query<Params>,
+) -> Response {
+    if !admitted(&shared.readers, &headers) {
+        let mut response = fault(
+            StatusCode::UNAUTHORIZED,
+            "request.unauthorized",
+            "a declared reader's Bearer token is required".to_string(),
+        );
+        response
+            .headers_mut()
+            .insert(header::WWW_AUTHENTICATE, HeaderValue::from_static("Bearer"));
+        return response;
+    }
     let floor = shared.retention.floor(retention::now());
     let store = shared.store;
     let filter = match params.filter() {
@@ -213,6 +242,18 @@ async fn spools(State(shared): State<Shared>, Json(enrollment): Json<Enrollment>
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(message) => fault(StatusCode::BAD_REQUEST, "spool.invalid", message),
     }
+}
+
+fn admitted(readers: &Readers, headers: &HeaderMap) -> bool {
+    if readers.open() {
+        return true;
+    }
+    headers
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.strip_prefix("Bearer "))
+        .and_then(|token| readers.admit(token.trim()))
+        .is_some()
 }
 
 async fn missing() -> Response {
