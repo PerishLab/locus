@@ -1,4 +1,7 @@
+mod link;
 mod reach;
+
+pub use link::Links;
 
 use locus::{Atom, Edge, Role};
 use serde::Serialize;
@@ -11,6 +14,7 @@ pub struct Interval {
     pub group: Option<String>,
     pub at: u64,
     pub until: u64,
+    span: String,
     headless: bool,
 }
 
@@ -26,6 +30,7 @@ pub struct Ledger {
     group: Option<Role>,
     open: BTreeMap<String, Frame>,
     traces: BTreeMap<String, Vec<Interval>>,
+    claims: BTreeMap<String, link::Claim>,
     headless: Vec<Frame>,
     head: Option<u64>,
     matched: u64,
@@ -36,6 +41,7 @@ pub struct Derived {
     pub unclosed: Vec<Orphan>,
     pub headless: Vec<Orphan>,
     pub tangles: Vec<Tangle>,
+    pub links: Links,
     pub matched: u64,
 }
 
@@ -48,6 +54,7 @@ impl Ledger {
     }
 
     pub fn observe(&mut self, atom: &Atom) -> Result<(), String> {
+        link::claim(&mut self.claims, atom);
         let Some(frame) = self.frame(atom) else {
             return Ok(());
         };
@@ -81,10 +88,11 @@ impl Ledger {
                     group: frame.group.clone(),
                     at: head,
                     until: frame.at,
+                    span: frame.span.clone(),
                     headless: true,
                 });
         }
-        for (trace, intervals) in self.traces.iter_mut() {
+        for intervals in self.traces.values_mut() {
             intervals.sort_by_key(|interval| {
                 (
                     interval.at,
@@ -92,7 +100,12 @@ impl Ledger {
                     std::cmp::Reverse(interval.until),
                 )
             });
-            let reaches = reach::tangled(intervals);
+        }
+        let mut resolution = link::resolve(&self.traces, &self.claims);
+        for (trace, intervals) in &self.traces {
+            let mut reaches = reach::tangled(intervals);
+            reaches.extend(resolution.reaches.remove(trace).unwrap_or_default());
+            let reaches = reach::merge(reaches);
             let mut refused: BTreeMap<usize, Tangle> = BTreeMap::new();
             for (index, interval) in intervals.iter().enumerate() {
                 if interval.headless {
@@ -106,11 +119,15 @@ impl Ledger {
                     continue;
                 }
                 let inclusive = u128::from(interval.until - interval.at);
+                let linked = resolution
+                    .covers
+                    .remove(&(trace.clone(), index))
+                    .unwrap_or_default();
                 held.push(Held {
                     declaration: interval.declaration.clone(),
                     group: interval.group.clone(),
                     inclusive,
-                    held: inclusive - covered(intervals, index),
+                    held: inclusive - covered(intervals, index, linked),
                 });
             }
             tangles.extend(refused.into_values());
@@ -120,6 +137,7 @@ impl Ledger {
             unclosed: self.open.into_values().map(Orphan::unclosed).collect(),
             headless: self.headless.into_iter().map(Orphan::headless).collect(),
             tangles,
+            links: resolution.links,
             matched: self.matched,
         }
     }
@@ -185,14 +203,14 @@ fn returned(
         group: entered.group,
         at: entered.at,
         until: frame.at,
+        span: entered.span,
         headless: false,
     });
     Ok(())
 }
 
-fn covered(intervals: &[Interval], index: usize) -> u128 {
+fn covered(intervals: &[Interval], index: usize, mut ranges: Vec<(u64, u64)>) -> u128 {
     let outer = &intervals[index];
-    let mut covered = 0_u128;
     let mut edge = outer.at;
     for inner in &intervals[index + 1..] {
         if inner.at >= outer.until {
@@ -201,8 +219,19 @@ fn covered(intervals: &[Interval], index: usize) -> u128 {
         if inner.at < edge {
             continue;
         }
-        covered += u128::from(inner.until - inner.at);
+        ranges.push((inner.at, inner.until));
         edge = inner.until;
+    }
+    ranges.sort_unstable();
+    let mut covered = 0_u128;
+    let mut edge = outer.at;
+    for (at, until) in ranges {
+        let at = at.max(edge);
+        let until = until.min(outer.until);
+        if until > at {
+            covered += u128::from(until - at);
+            edge = until;
+        }
     }
     covered
 }

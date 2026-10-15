@@ -15,9 +15,10 @@ and engine diagnostic handoff.
   Locus may remove evidence, but never business capability, state, output,
   exit status, or control flow. Observation failures stay visible to the audit
   operator and isolated from the observed command.
-- Context is an immutable view. A derived view may shadow one role while every
-  prior view keeps its meaning. Complete history is never propagated as
-  Context.
+- Context is an immutable view. A derived view may shadow one role, and a
+  fork view replaces the trace and span with a fresh trace and its parent link,
+  while every prior view keeps its meaning. Complete history is never
+  propagated as Context.
 - A requested role resolves in this order: explicit key, inherited context key,
   configured generator.
 - Only absence falls through. Invalid explicit, inherited, generated, or stored
@@ -34,8 +35,19 @@ and engine diagnostic handoff.
   attribute without a reporter changing the fact.
 - Shared-file generation publishes a complete key before it becomes visible;
   concurrent initializers converge without observing a partial stored value.
-- Trace and span are semantic roles over records. They imply no parenthood,
-  nesting, lifecycle, status, or duration.
+- Trace and span are semantic roles over records. They imply no lifecycle,
+  status, or duration. Nesting has exactly two kinds of evidence: containment
+  within one trace, and an explicit parent link. Neither is ever inferred from
+  time alone across traces.
+- `locus.parent` is the parent link: a role whose key names the span that
+  launched a trace. It is a recorded fact about one trace, bound on any record
+  of that trace, and need not be inherited by every record. Across processes
+  it enters only through the Locus-owned `LOCUS_PARENT` variable and its
+  `environment` collector; writing that variable into a child's environment is
+  the launching product's act, and Locus itself still reads no environment.
+  Within a process, `Engine::fork` derives from a frame Context a view with a
+  fresh trace, the frame's span as parent, and no span. `trace` exposes its
+  frame Context to the function body only through an explicit `frame` name.
 - Automatic tracing emits one entry and one normal-return record per traced
   function declaration. Error returns are normal returns; panic, abort,
   cancellation, process exit, and process loss leave the entry without an
@@ -119,14 +131,23 @@ and engine diagnostic handoff.
   causality, or liveness.
 - CLI span pairs one entering source record with
   its returning record. It reports elapsed and held time per traced declaration
-  and names every entered span that never returned. Held time reads containment
-  within one trace as the only nesting evidence, so partial overlap refuses
-  rather than attributing a share it cannot support. That refusal is scoped to
+  and names every entered span that never returned. Held time reads
+  containment within one trace and explicit parent links as its only nesting
+  evidence, so partial overlap within a trace refuses rather than attributing a
+  share it cannot support. That refusal is scoped to
   the time the crossing reaches: every span meeting it is named and dropped,
   every span clear of it still derives. Scoping never widens what is claimed,
   because a dropped span always contains any span dropped inside it.
-  Recovering the crossing itself would need a parent link the records do not
-  carry, so it is never guessed.
+  A crossing inside one trace is never recovered by guessing a parent.
+- A parent link nests a whole linked trace under one complete span of another
+  trace. When every interval of the linked trace lies within that span, the
+  span's held time subtracts the union of its direct children and its linked
+  traces' intervals, so concurrent linked traces never cross each other. A
+  linked trace reaching outside its parent refuses under the scoped rule in the
+  parent's trace, while the linked trace still derives on its own. A link whose
+  parent is not a complete span in the stream, or a trace carrying two
+  different parents, derives standalone and is counted. Span and inspection
+  summaries report `links` as nested, outlived, missing and conflicting counts.
 - A return whose entry is not in the stream is named `headless` and counted,
   never measured and never refused as a whole input. The read window and the
   spool's designed loss both produce one, and neither side knows where a shed

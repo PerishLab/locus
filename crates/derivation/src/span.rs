@@ -1,4 +1,4 @@
-use crate::derive::{Derived, Ledger, Orphan, SCHEMA, Tangle};
+use crate::derive::{Derived, Ledger, Links, Orphan, SCHEMA, Tangle};
 use locus::Atom;
 use serde::Serialize;
 use std::collections::BTreeMap;
@@ -51,6 +51,7 @@ impl Report {
             headless: self.derived.headless.len(),
             tangled: self.derived.tangles.len(),
             refused: self.derived.tangles.iter().map(|tangle| tangle.spans).sum(),
+            links: self.derived.links,
             retained: self.retained,
         }));
         records
@@ -120,6 +121,7 @@ pub struct Summary {
     headless: usize,
     tangled: usize,
     refused: u64,
+    links: Links,
     #[serde(skip_serializing_if = "Option::is_none")]
     retained: Option<u64>,
 }

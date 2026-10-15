@@ -30,6 +30,10 @@ impl Role {
         Self("locus.span".into())
     }
 
+    pub fn parent() -> Self {
+        Self("locus.parent".into())
+    }
+
     pub fn text(&self) -> &str {
         &self.0
     }
@@ -104,6 +108,16 @@ impl Context {
         }
         let mut values = self.values.as_ref().clone();
         values.insert(role, key);
+        Self {
+            values: Arc::new(values),
+        }
+    }
+
+    pub(crate) fn branch(&self, trace: Key, parent: Key) -> Self {
+        let mut values = self.values.as_ref().clone();
+        values.remove(&Role::span());
+        values.insert(Role::trace(), trace);
+        values.insert(Role::parent(), parent);
         Self {
             values: Arc::new(values),
         }

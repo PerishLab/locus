@@ -114,6 +114,15 @@ impl Engine {
         Ok(Accepted::new(context))
     }
 
+    pub fn fork(&self, frame: &Context) -> Result<Context, Error> {
+        let parent = frame
+            .read(&Role::span())
+            .cloned()
+            .ok_or_else(|| Error::context("fork requires a frame context carrying locus.span"))?;
+        let (trace, _) = self.resolve(&Context::empty(), &Role::trace(), None)?;
+        Ok(frame.branch(trace, parent))
+    }
+
     fn collect(&self, candidate: &mut Candidate) -> Result<Vec<Collection>, Error> {
         let mut seen = BTreeMap::new();
         let mut provenance = Vec::new();
