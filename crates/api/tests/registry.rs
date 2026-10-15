@@ -119,7 +119,7 @@ fn emit(engine: &Engine, sequence: usize) {
         .expect("append");
 }
 
-fn temp(label: &str) -> PathBuf {
+fn temp(label: &str) -> Temp {
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("clock")
@@ -129,5 +129,20 @@ fn temp(label: &str) -> PathBuf {
         std::process::id()
     ));
     fs::create_dir_all(Path::new(&path)).expect("temp");
-    path
+    Temp(path)
+}
+
+struct Temp(PathBuf);
+
+impl std::ops::Deref for Temp {
+    type Target = PathBuf;
+    fn deref(&self) -> &PathBuf {
+        &self.0
+    }
+}
+
+impl Drop for Temp {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
 }

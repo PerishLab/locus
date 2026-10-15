@@ -25,6 +25,7 @@ struct Served {
     api: String,
     sample: String,
     trace: String,
+    _home: Root,
 }
 
 #[test]
@@ -183,7 +184,6 @@ fn launch(retention: Retention) -> Served {
     .expect("drain");
     let (sender, receiver) = mpsc::channel();
     thread::spawn(move || {
-        let _home = home;
         let runtime = tokio::runtime::Runtime::new().expect("runtime");
         runtime.block_on(async move {
             let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -202,7 +202,12 @@ fn launch(retention: Retention) -> Served {
         });
     });
     let api = format!("http://{}", receiver.recv().expect("address"));
-    Served { api, sample, trace }
+    Served {
+        api,
+        sample,
+        trace,
+        _home: home,
+    }
 }
 
 fn first(sample: &str) -> String {
