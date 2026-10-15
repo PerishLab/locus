@@ -1,22 +1,7 @@
 use crate::day;
 use crate::store::Store;
-use serde::Deserialize;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
-
-const FILE: &str = "locus-api.toml";
-
-#[derive(Default, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Declared {
-    retention: Option<Section>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct Section {
-    days: u64,
-}
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Retention {
@@ -33,11 +18,7 @@ impl Retention {
     }
 
     pub fn read(home: &Path) -> Result<Self, String> {
-        let path = home.join(FILE);
-        if !path.is_file() {
-            return Ok(Self::default());
-        }
-        let declared: Declared = plumb::config::load(&path).map_err(|error| error.to_string())?;
+        let declared = crate::config::read(home)?;
         Ok(Self {
             days: declared.retention.map(|section| section.days),
         })

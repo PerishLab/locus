@@ -107,6 +107,7 @@ and engine diagnostic handoff.
     because no partial output may precede a refusal.
 - The CLI is an adapter: it reads Atoms only from a `locus-api` read API, at `--api` (default
   `http://127.0.0.1:43308`), narrowed by its window, selector and producer.
+  It sends `--token` (or `LOCUS_API_TOKEN`) as a Bearer token, never observed.
   When the server reports a retained boundary, every summary carries it as
   `retained`, so a headless return can be read against it.
 - Inspection runs Locus's default analyzers unless a product turns them off:
@@ -178,7 +179,8 @@ and engine diagnostic handoff.
     return records in time order.
   - Read API: `GET /api/v1/atoms` streams stored records as JSONL. With a
     declared retention it names, in `locus-retained-from`, the instant before
-    which history is not retained.
+    which history is not retained. Guarded, it answers 401 with
+    `WWW-Authenticate: Bearer` to a request without a declared reader's token.
     `locus-api export-openapi` and its snapshot test own the HTTP contract; the
     `--help` snapshots own both command surfaces.
 - Delivery is at least once: a crash between a store append and its offset
@@ -192,7 +194,13 @@ and engine diagnostic handoff.
   is selected exactly by reading each candidate. A JSONL `store` directory
   left by an earlier server is migrated at startup, one day at a time, and a
   day file is removed only after it reads back byte for byte.
-- The server listens on loopback only and carries no authentication yet.
+- The server listens on loopback only. Read access is guarded by digest
+  bearer: each `[[reader]]` in `<home>/locus-api.toml` names one reader and
+  holds only the SHA-256 digest of its token, never the token. With readers
+  declared, `GET /api/v1/atoms` admits only a Bearer token whose digest
+  matches one; without them it stays open. `/health` and `POST /api/v1/spools`
+  are never guarded, so registration never blocks a product. Names and digests
+  are unique; a malformed reader refuses at startup and fails doctor.
 - `locus-api` observes itself through Locus, never through tracing
   subscribers. The `[locus] enabled` switch in `config.toml` under the
   platform `.locus` home, the same gate `export-openapi` reads and separate
@@ -205,7 +213,7 @@ and engine diagnostic handoff.
   `POST /api/v1/spools` or drain, whatever endpoint `[locus]` names. Observation
   failures reach stderr and never change a cycle's result or stop `serve`.
 - Retention is declared only in `[retention] days` of `<home>/locus-api.toml`,
-  the server's standard config file; malformed config refuses at startup.
+  the server's standard config file, which also holds `[[reader]]`; malformed config refuses at startup.
   Undeclared, nothing is deleted. Declared, each drain cycle drops every
   producer-day partition wholly before the current day minus `days`, through
   the Store interface, so the rule holds whatever store sits behind it.

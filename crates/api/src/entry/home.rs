@@ -1,4 +1,5 @@
 use crate::doctor::{Check, Status};
+use locus_api::access::Readers;
 use locus_api::registry::Registry;
 use locus_api::retention::Retention;
 use std::fs::{self, File};
@@ -160,24 +161,45 @@ impl<'a> Home<'a> {
 
     pub fn config(&self) -> Check {
         let path = self.path.join("locus-api.toml");
+        let readers = match Readers::read(self.path) {
+            Ok(readers) => readers,
+            Err(_) if Retention::read(self.path).is_err() => Readers::default(),
+            Err(error) => {
+                return Check::new(
+                    "config",
+                    Status::Fail,
+                    error,
+                    Some(
+                        "Give each [[reader]] a unique name and the unique 64-hex SHA-256 digest of its token, or remove the readers to leave the read API open; serve refuses to start with it as is.",
+                    ),
+                );
+            }
+        };
+        let guard = match readers.names().as_slice() {
+            [] => "; the read API is open".to_string(),
+            names => format!("; readers {} guard the read API", names.join(", ")),
+        };
         match Retention::read(self.path) {
             Ok(retention) => match retention.declared() {
                 Some(days) => Check::new(
                     "config",
                     Status::Ok,
-                    format!("{} keeps {days} day(s) of history", path.display()),
+                    format!("{} keeps {days} day(s) of history{guard}", path.display()),
                     None,
                 ),
                 None if path.is_file() => Check::new(
                     "config",
                     Status::Ok,
-                    format!("{} declares no retention; history is kept", path.display()),
+                    format!(
+                        "{} declares no retention; history is kept{guard}",
+                        path.display()
+                    ),
                     None,
                 ),
                 None => Check::new(
                     "config",
                     Status::Ok,
-                    format!("{} is absent; history is kept", path.display()),
+                    format!("{} is absent; history is kept{guard}", path.display()),
                     None,
                 ),
             },

@@ -1,4 +1,5 @@
 use crate::home::Home;
+use locus_api::access::Readers;
 use locus_api::retention;
 use serde::Serialize;
 use std::net::SocketAddr;
@@ -61,7 +62,8 @@ pub fn run(version: &str, home: &Path, listen: SocketAddr) -> Report {
         place.spools(),
         place.config(),
     ];
-    checks.extend(live(listen));
+    let protected = Readers::read(home).is_ok_and(|readers| !readers.open());
+    checks.extend(live(listen, protected));
     let state = if checks.iter().any(|check| check.status == Status::Fail) {
         "failing"
     } else {
@@ -95,7 +97,7 @@ fn binary(version: &str, listen: SocketAddr) -> Check {
     }
 }
 
-fn live(listen: SocketAddr) -> Vec<Check> {
+fn live(listen: SocketAddr, protected: bool) -> Vec<Check> {
     let base = format!("http://{listen}");
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .timeout_global(Some(TIMEOUT))
@@ -142,6 +144,12 @@ fn live(listen: SocketAddr) -> Vec<Check> {
             "atoms",
             Status::Ok,
             format!("{base}/api/v1/atoms answered 200"),
+            None,
+        ),
+        Ok(response) if protected && response.status() == 401 => Check::new(
+            "atoms",
+            Status::Ok,
+            format!("{base}/api/v1/atoms answered 401 without a token; declared readers guard it"),
             None,
         ),
         Ok(response) => {
