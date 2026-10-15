@@ -146,7 +146,7 @@ fn stored(store: &dyn Store) -> Vec<Value> {
     lines
 }
 
-fn temp(label: &str) -> PathBuf {
+fn temp(label: &str) -> Temp {
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("clock")
@@ -154,5 +154,20 @@ fn temp(label: &str) -> PathBuf {
     let path =
         std::env::temp_dir().join(format!("locus-api-{label}-{}-{stamp}", std::process::id()));
     fs::create_dir_all(&path).expect("temp");
-    path
+    Temp(path)
+}
+
+struct Temp(PathBuf);
+
+impl std::ops::Deref for Temp {
+    type Target = PathBuf;
+    fn deref(&self) -> &PathBuf {
+        &self.0
+    }
+}
+
+impl Drop for Temp {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
 }

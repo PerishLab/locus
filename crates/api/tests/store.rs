@@ -91,7 +91,7 @@ fn names() {
     assert!(Producer::new("concord-2.dev").is_ok());
 }
 
-fn store(label: &str) -> Segments {
+fn store(label: &str) -> Opened {
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("clock")
@@ -101,7 +101,31 @@ fn store(label: &str) -> Segments {
         std::process::id()
     ));
     fs::create_dir_all(&path).expect("temp");
-    Segments::open(path).expect("store")
+    let store = Segments::open(&path).expect("store");
+    Opened {
+        store,
+        _home: Temp(path),
+    }
+}
+
+struct Opened {
+    store: Segments,
+    _home: Temp,
+}
+
+impl std::ops::Deref for Opened {
+    type Target = Segments;
+    fn deref(&self) -> &Segments {
+        &self.store
+    }
+}
+
+struct Temp(PathBuf);
+
+impl Drop for Temp {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
 }
 
 fn producer(name: &str) -> Producer {

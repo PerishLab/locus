@@ -33,7 +33,7 @@ fn registered() {
     let (engine, capture) = engine(&endpoint, &directory, Some("concord"));
     let request = requests.recv().expect("registration");
     assert!(request.starts_with("POST /api/v1/spools HTTP/1.1"));
-    let canonical = fs::canonicalize(&directory).expect("canonical");
+    let canonical = fs::canonicalize(&*directory).expect("canonical");
     let body: serde_json::Value =
         serde_json::from_str(request.rsplit("\r\n\r\n").next().expect("body")).expect("json");
     assert_eq!(body["producer"], "concord");
@@ -86,7 +86,7 @@ fn anonymous() {
 fn malformed() {
     let directory = temp("malformed");
     for endpoint in ["https://127.0.0.1:1", "127.0.0.1:1", "http://host/path"] {
-        let policy = Policy::default().reporter(reporter::Spec::api(endpoint, &directory));
+        let policy = Policy::default().reporter(reporter::Spec::api(endpoint, &*directory));
         assert!(Engine::bootstrap(Config::new(policy).hook(Arc::new(Capture::default()))).is_err());
     }
 }
@@ -153,7 +153,7 @@ fn lines(path: &Path) -> usize {
     fs::read_to_string(path).expect("active").lines().count()
 }
 
-fn temp(label: &str) -> PathBuf {
+fn temp(label: &str) -> Temp {
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("clock")
@@ -163,5 +163,20 @@ fn temp(label: &str) -> PathBuf {
         std::process::id()
     ));
     fs::create_dir_all(&path).expect("temp");
-    path
+    Temp(path)
+}
+
+struct Temp(PathBuf);
+
+impl std::ops::Deref for Temp {
+    type Target = PathBuf;
+    fn deref(&self) -> &PathBuf {
+        &self.0
+    }
+}
+
+impl Drop for Temp {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
 }

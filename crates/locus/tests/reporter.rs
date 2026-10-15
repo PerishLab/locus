@@ -30,7 +30,8 @@ impl Hook for Capture {
 fn privacy() {
     use std::os::unix::fs::PermissionsExt;
 
-    let spool = temp("privacy").join("spool");
+    let home = temp("privacy");
+    let spool = home.join("spool");
     emit(&engine(&spool), 0);
     let mode = |path: &Path| fs::metadata(path).expect("metadata").permissions().mode() & 0o777;
     assert_eq!(mode(&spool), 0o700);
@@ -39,7 +40,8 @@ fn privacy() {
 
 #[test]
 fn identity() {
-    let spool = temp("identity").join("spool");
+    let home = temp("identity");
+    let spool = home.join("spool");
     let engine = engine(&spool);
     for sequence in 0..50 {
         emit(&engine, sequence);
@@ -62,11 +64,11 @@ fn refused() {
         reporter::Spec::new("file", json!({"path": directory.join("a")})),
         reporter::Spec::new(
             "spool",
-            json!({"path": directory, "ceiling": 10, "segment": 1}),
+            json!({"path": *directory, "ceiling": 10, "segment": 1}),
         ),
         reporter::Spec::new(
             "api",
-            json!({"endpoint": CLOSED, "path": directory, "ceiling": 10}),
+            json!({"endpoint": CLOSED, "path": *directory, "ceiling": 10}),
         ),
         reporter::Spec::new("future", json!({})),
     ];
@@ -98,7 +100,7 @@ fn emit(engine: &Engine, sequence: usize) {
         .expect("append");
 }
 
-fn temp(label: &str) -> PathBuf {
+fn temp(label: &str) -> Temp {
     let stamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("clock")
@@ -108,5 +110,20 @@ fn temp(label: &str) -> PathBuf {
         std::process::id()
     ));
     fs::create_dir_all(&path).expect("temp");
-    path
+    Temp(path)
+}
+
+struct Temp(PathBuf);
+
+impl std::ops::Deref for Temp {
+    type Target = PathBuf;
+    fn deref(&self) -> &PathBuf {
+        &self.0
+    }
+}
+
+impl Drop for Temp {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
 }
