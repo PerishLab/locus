@@ -2,7 +2,7 @@ use sha2::{Digest, Sha256};
 use std::process::Command;
 
 const OPENAPI: &str = "00ef757e51192444998af8000d768cfb82425d09771a4af98cfbefd92e55b1c9";
-const HELP: &str = "f4fb2506311031c104250d875a09ca4f70bad7d8616939b81a83d2fb3a429dab";
+const HELP: &str = "6e95ee6988ec1dc33fffb50b16657a9330b8ebfce2b39826069f0c8e89a2d1a1";
 
 #[test]
 fn openapi() {

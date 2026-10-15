@@ -15,6 +15,14 @@ pub struct Source {
     pub path: PathBuf,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct Tally {
+    pub sources: usize,
+    pub segments: usize,
+    pub records: usize,
+    pub rejected: usize,
+}
+
 pub struct Drain {
     store: Arc<dyn Store>,
     rejected: PathBuf,
@@ -30,24 +38,27 @@ impl Drain {
         }
     }
 
-    pub fn cycle(&self) -> Result<(), String> {
+    pub fn cycle(&self) -> Result<Tally, String> {
+        let mut tally = Tally::default();
         for source in &self.registry.sources() {
+            tally.sources += 1;
             let claimed = spool::claim(&source.path)
                 .map_err(|error| format!("cannot claim {}: {error}", source.path.display()))?;
             for path in claimed {
-                self.advance(source, &path)?;
+                self.advance(source, &path, &mut tally)?;
                 fs::remove_file(&path).map_err(|error| error.to_string())?;
                 remove(&sibling(&path, OFFSET))?;
+                tally.segments += 1;
             }
         }
-        Ok(())
+        Ok(tally)
     }
 
-    fn advance(&self, source: &Source, path: &Path) -> Result<u64, String> {
+    fn advance(&self, source: &Source, path: &Path, tally: &mut Tally) -> Result<u64, String> {
         let marker = sibling(path, OFFSET);
         let mut offset = position(&marker)?;
         loop {
-            let consumed = self.batch(source, path, offset)?;
+            let consumed = self.batch(source, path, offset, tally)?;
             if consumed == 0 {
                 return Ok(offset);
             }
@@ -56,7 +67,13 @@ impl Drain {
         }
     }
 
-    fn batch(&self, source: &Source, path: &Path, offset: u64) -> Result<u64, String> {
+    fn batch(
+        &self,
+        source: &Source,
+        path: &Path,
+        offset: u64,
+        tally: &mut Tally,
+    ) -> Result<u64, String> {
         let mut file =
             File::open(path).map_err(|error| format!("cannot open {}: {error}", path.display()))?;
         file.seek(SeekFrom::Start(offset))
@@ -88,7 +105,9 @@ impl Drain {
         }
         let token = format!("{}@{offset}", path.display());
         self.store.append(&source.producer, &records, &token)?;
+        tally.records += records.len();
         self.reject(&source.producer, &rejected)?;
+        tally.rejected += rejected.len();
         Ok(complete as u64)
     }
 
