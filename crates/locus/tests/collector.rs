@@ -68,6 +68,26 @@ fn environment() {
 }
 
 #[test]
+fn parent() {
+    unsafe {
+        std::env::set_var(collector::PARENT, "0123456789abcdef");
+    }
+    let policy = Policy::default().collector("parent", collector::Spec::parent());
+    let atom = record(
+        "parent",
+        policy,
+        Candidate::event(json!({"event": "cli.start"})).collect(Role::parent(), "parent"),
+    );
+    unsafe {
+        std::env::remove_var(collector::PARENT);
+    }
+
+    assert_eq!(collector::PARENT, "LOCUS_PARENT");
+    assert_eq!(atom.context()["locus.parent"], "0123456789abcdef");
+    assert_eq!(atom.collections()[0].selector(), "LOCUS_PARENT");
+}
+
+#[test]
 fn fallback() {
     let target = Role::new("plumb.target").expect("role");
     let missing = format!("LOCUS_COLLECTOR_MISSING_{}", std::process::id());

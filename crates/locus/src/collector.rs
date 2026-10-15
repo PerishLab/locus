@@ -4,6 +4,8 @@ use serde_json::{Map, Value, json};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 
+pub const PARENT: &str = "LOCUS_PARENT";
+
 const LIMIT: usize = 4096;
 const ARGUMENTS: usize = 255;
 
@@ -23,6 +25,10 @@ impl Spec {
 
     pub fn environment(name: impl Into<String>, limit: usize) -> Self {
         Self::new("environment", json!({"name": name.into(), "limit": limit}))
+    }
+
+    pub fn parent() -> Self {
+        Self::environment(PARENT, 512)
     }
 
     pub fn argument(index: usize, limit: usize) -> Self {

@@ -1,5 +1,5 @@
 use super::model::{Group, Measurement};
-use crate::derive::Ledger;
+use crate::derive::{Ledger, Links};
 use locus::{Atom, Edge, Role};
 use serde::Serialize;
 use serde_json::Value;
@@ -29,12 +29,14 @@ pub(super) struct Reading {
 pub struct Unmeasured {
     refused: u64,
     headless: u64,
+    links: Links,
 }
 
 impl Unmeasured {
     pub fn absorb(&mut self, other: Self) {
         self.refused = self.refused.max(other.refused);
         self.headless = self.headless.max(other.headless);
+        self.links.absorb(other.links);
     }
 }
 
@@ -130,6 +132,7 @@ impl State {
                 unmeasured = Unmeasured {
                     refused: derived.tangles.iter().map(|tangle| tangle.spans).sum(),
                     headless: derived.headless.len() as u64,
+                    links: derived.links,
                 };
                 let mut groups: BTreeMap<String, Span> = BTreeMap::new();
                 for held in derived.held {

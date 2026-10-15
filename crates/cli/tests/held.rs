@@ -76,3 +76,35 @@ fn headless() {
     assert_eq!(records[0]["measurement"]["value"], 10);
     assert_eq!(records[0]["measurement"]["spans"], 1);
 }
+
+#[test]
+fn linked() {
+    let root = Root::new(Some(TIMED));
+    let child = |at: u64, edge: &str| {
+        serde_json::json!({
+            "at": at,
+            "context": {"locus.trace": "child", "locus.span": "worker", "locus.parent": "outer"},
+            "choices": [],
+            "source": {"file": "a.rs", "line": 1, "column": 1, "module": "m", "function": "worker", "edge": edge},
+        })
+        .to_string()
+    };
+    let input = [
+        framed(0, "outer", "enter"),
+        child(10, "enter"),
+        child(30, "return"),
+        framed(40, "outer", "return"),
+    ]
+    .join("\n");
+    let output = run(&root, &input);
+    let records = records(&output);
+    let parent = records
+        .iter()
+        .find(|record| record["group"]["key"] == "trace")
+        .expect("parent trace");
+    assert_eq!(parent["measurement"]["value"], 20);
+    assert_eq!(parent["measurement"]["inclusive"], 40);
+    let summary = records.last().expect("summary");
+    assert_eq!(summary["links"]["nested"], 1);
+    assert_eq!(summary["refused"], 0);
+}

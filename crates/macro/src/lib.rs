@@ -51,6 +51,7 @@ pub fn record(input: TokenStream) -> TokenStream {
 
 struct Trace {
     observation: Expr,
+    binding: Option<Ident>,
 }
 
 impl Parse for Trace {
@@ -61,19 +62,40 @@ impl Parse for Trace {
         }
         input.parse::<Token![=]>()?;
         let observation = input.parse()?;
+        let mut binding = None;
         if input.peek(Token![,]) {
             input.parse::<Token![,]>()?;
         }
         if !input.is_empty() {
-            return Err(input.error("trace accepts one `with` expression"));
+            let field: Ident = input.parse()?;
+            if field != "frame" {
+                return Err(syn::Error::new(
+                    field.span(),
+                    "trace accepts only `frame` after `with`",
+                ));
+            }
+            input.parse::<Token![=]>()?;
+            binding = Some(input.parse()?);
+            if input.peek(Token![,]) {
+                input.parse::<Token![,]>()?;
+            }
         }
-        Ok(Self { observation })
+        if !input.is_empty() {
+            return Err(input.error("trace accepts one `with` expression and one `frame` name"));
+        }
+        Ok(Self {
+            observation,
+            binding,
+        })
     }
 }
 
 #[proc_macro_attribute]
 pub fn trace(args: TokenStream, input: TokenStream) -> TokenStream {
-    let Trace { observation } = parse_macro_input!(args as Trace);
+    let Trace {
+        observation,
+        binding,
+    } = parse_macro_input!(args as Trace);
     let mut function = parse_macro_input!(input as ItemFn);
     if let Some(token) = &function.sig.constness {
         return syn::Error::new_spanned(token, "trace does not support const functions")
@@ -100,6 +122,12 @@ pub fn trace(args: TokenStream, input: TokenStream) -> TokenStream {
 
     let name = function.sig.ident.to_string();
     let body = function.block;
+    let expose = binding.map(|name| {
+        quote! {
+            let #name: ::std::option::Option<::locus::Context> =
+                frame.as_ref().map(|(_, context)| context.clone());
+        }
+    });
     let invoke = if function.sig.asyncness.is_some() {
         quote! { (async #body).await }
     } else {
@@ -119,7 +147,10 @@ pub fn trace(args: TokenStream, input: TokenStream) -> TokenStream {
                 .ok()
                 .map(|accepted| (engine, accepted.context()))
         });
-        let result = #invoke;
+        let result = {
+            #expose
+            #invoke
+        };
         if let Some((engine, context)) = frame {
             let candidate = ::locus::Candidate::context()
                 .ensure(::locus::Role::trace())

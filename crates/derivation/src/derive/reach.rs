@@ -29,7 +29,7 @@ pub(super) fn struck(reaches: &[Reach], interval: &Interval) -> Option<usize> {
         .position(|reach| interval.at < reach.until && reach.at < interval.until)
 }
 
-fn merge(mut reaches: Vec<Reach>) -> Vec<Reach> {
+pub(super) fn merge(mut reaches: Vec<Reach>) -> Vec<Reach> {
     reaches.sort_by_key(|reach| (reach.at, reach.until));
     let mut merged: Vec<Reach> = Vec::new();
     for reach in reaches {
