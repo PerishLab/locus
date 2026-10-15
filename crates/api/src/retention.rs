@@ -28,6 +28,10 @@ impl Retention {
         Self { days: Some(days) }
     }
 
+    pub fn declared(&self) -> Option<u64> {
+        self.days
+    }
+
     pub fn read(home: &Path) -> Result<Self, String> {
         let path = home.join(FILE);
         if !path.is_file() {

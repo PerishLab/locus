@@ -1,3 +1,5 @@
+mod doctor;
+mod home;
 mod observation;
 use clap::{Args, Parser, Subcommand};
 use locus_api::column::Columns;
@@ -27,6 +29,23 @@ enum Command {
     Serve(Serve),
     #[command(name = "export-openapi", about = "Print the OpenAPI document")]
     Openapi,
+    #[command(about = "Check the binary, home and live service read-only and print a JSON report")]
+    Doctor(Doctor),
+}
+
+#[derive(Args)]
+struct Doctor {
+    #[arg(
+        long,
+        help = "Directory holding the store, registry and rejected records [default: the user's .locus]"
+    )]
+    home: Option<PathBuf>,
+    #[arg(
+        long,
+        default_value = "127.0.0.1:43308",
+        help = "Loopback address the service serves on"
+    )]
+    listen: SocketAddr,
 }
 
 #[derive(Args)]
@@ -64,6 +83,7 @@ fn main() -> ExitCode {
                 ExitCode::from(2)
             }
         },
+        Command::Doctor(doctor) => diagnose(doctor),
         Command::Openapi => {
             let observer = observation::Run::start("api.export-openapi");
             export(observer.as_ref());
@@ -72,6 +92,27 @@ fn main() -> ExitCode {
             }
             ExitCode::SUCCESS
         }
+    }
+}
+
+fn diagnose(doctor: Doctor) -> ExitCode {
+    let Some(home) = doctor.home.or_else(|| plumb::config::data("locus")) else {
+        eprintln!("locus-api: no home: pass --home or set the user's home");
+        return ExitCode::from(2);
+    };
+    let report = doctor::run(plumb::version!("LOCUS"), &home, doctor.listen);
+    let text = match serde_json::to_string_pretty(&report) {
+        Ok(text) => text,
+        Err(error) => {
+            eprintln!("locus-api: {error}");
+            return ExitCode::from(2);
+        }
+    };
+    println!("{text}");
+    if report.failed() {
+        ExitCode::from(1)
+    } else {
+        ExitCode::SUCCESS
     }
 }
 
