@@ -2,6 +2,7 @@ mod cycle;
 mod doctor;
 mod home;
 mod observation;
+mod producers;
 use clap::{Args, Parser, Subcommand};
 use locus_api::access::Readers;
 use locus_api::column::Columns;

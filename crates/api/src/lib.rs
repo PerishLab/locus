@@ -7,4 +7,4 @@ pub mod registry;
 pub mod server;
 pub mod store;
 
-pub use config::{access, retention};
+pub use config::{access, expected, retention};

@@ -208,7 +208,7 @@ impl<'a> Home<'a> {
                 Status::Fail,
                 error,
                 Some(
-                    "Fix locus-api.toml to hold only [retention] days = <whole days>, or remove it to keep all history; serve refuses to start with it as is.",
+                    "Fix locus-api.toml to hold only [retention] days = <whole days>, [[reader]] entries and [producers] expected = [<names>], or remove it to keep all history; serve refuses to start with it as is.",
                 ),
             ),
         }

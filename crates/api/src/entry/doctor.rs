@@ -4,7 +4,7 @@ use locus_api::retention;
 use serde::Serialize;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 const TIMEOUT: Duration = Duration::from_secs(2);
 
@@ -60,6 +60,7 @@ pub fn run(version: &str, home: &Path, listen: SocketAddr) -> Report {
         place.estate(),
         place.column(),
         place.spools(),
+        crate::producers::check(home, SystemTime::now()),
         place.config(),
     ];
     let protected = Readers::read(home).is_ok_and(|readers| !readers.open());
