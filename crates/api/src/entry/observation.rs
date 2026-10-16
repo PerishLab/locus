@@ -1,4 +1,5 @@
 use locus::{Adaptor, Candidate, Config, Context, Engine, Hook, Observation, Policy, Role};
+use plumb::observation::{Declaration, Run};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::path::PathBuf;
@@ -16,40 +17,18 @@ struct File {
 struct Settings {
     #[serde(default)]
     enabled: bool,
-    endpoint: Option<String>,
 }
 
-pub(crate) struct Run {
-    engine: Engine,
-    context: Context,
-    cycle: Context,
-}
-
-impl Run {
-    pub(crate) fn start(command: &str) -> Option<Self> {
-        let home = plumb::config::data("locus")?;
-        let built = settings(&home).and_then(|settings| {
-            settings
-                .map(|settings| {
-                    let endpoint = settings.endpoint.unwrap_or_else(|| {
-                        plumb::config::value("LOCUS_API")
-                            .unwrap_or_else(|| "http://127.0.0.1:43308".into())
-                    });
-                    build(command, endpoint, home.join("state/locus"))
-                })
-                .transpose()
-        });
-        isolate(built)
-    }
-
-    pub(crate) fn view(&self) -> (&Engine, &Context) {
-        (&self.engine, &self.context)
-    }
-
-    pub(crate) fn finish(self, code: i32) {
-        let candidate = Candidate::event(json!({"event": "cli.finish", "code": code}));
-        let _ = self.engine.append(&self.cycle, candidate);
-    }
+pub(crate) fn start(command: &str) -> Option<Run> {
+    let home = plumb::config::data("locus")?;
+    Run::start(
+        Declaration {
+            producer: "locus",
+            file: &home.join("config.toml"),
+            buffer: home.join("state/locus"),
+        },
+        command,
+    )
 }
 
 pub(crate) struct Watch {
@@ -134,33 +113,4 @@ fn watch(buffer: PathBuf) -> Result<Watch, String> {
         .map_err(|error| error.to_string())?
         .context();
     Ok(Watch { engine, context })
-}
-
-fn build(command: &str, endpoint: String, buffer: PathBuf) -> Result<Run, String> {
-    let engine = Engine::bootstrap(Config::new(
-        Policy::default()
-            .producer("locus")
-            .reporter(locus::reporter::Spec::api(endpoint, buffer)),
-    ))
-    .map_err(|error| error.to_string())?;
-    let candidate = Candidate::context().ensure(Role::trace()).explicit(
-        Role::new("locus.command").map_err(|error| error.to_string())?,
-        locus::Key::new(command).map_err(|error| error.to_string())?,
-    );
-    let context = engine
-        .append(&Context::empty(), candidate)
-        .map_err(|error| error.to_string())?
-        .context();
-    let cycle = engine
-        .append(
-            &context,
-            Candidate::event(json!({"event": "cli.start"})).ensure(Role::span()),
-        )
-        .map_err(|error| error.to_string())?
-        .context();
-    Ok(Run {
-        engine,
-        context,
-        cycle,
-    })
 }

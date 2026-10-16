@@ -1,11 +1,10 @@
 use locus::Atom;
 use std::io::BufRead;
 
-#[locus::trace(with = observer.map(crate::observation::Run::view))]
+#[locus::trace(with = plumb::observation::view())]
 pub fn scan(
     mut reader: impl BufRead,
     mut observe: impl FnMut(Atom, u64) -> Result<(), String>,
-    observer: Option<&crate::observation::Run>,
 ) -> Result<u64, String> {
     let mut offset = 0_u64;
     loop {

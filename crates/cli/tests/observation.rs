@@ -3,6 +3,8 @@ mod fixture;
 
 use fixture::{Root, atom, stub};
 use serde_json::{Value, json};
+use std::io::{Read, Write};
+use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::{Command, Output};
 
@@ -173,4 +175,70 @@ fn isolated() {
     assert_eq!(result.status.code(), Some(0));
     assert_eq!(result.stdout, baseline.stdout);
     assert!(!result.stderr.is_empty());
+}
+
+fn refuse() -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let api = format!("http://{}", listener.local_addr().unwrap());
+    std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let mut request = Vec::new();
+        let mut chunk = [0; 1024];
+        while !request.ends_with(b"\r\n\r\n") {
+            match stream.read(&mut chunk) {
+                Ok(0) | Err(_) => return,
+                Ok(read) => request.extend_from_slice(&chunk[..read]),
+            }
+        }
+        let body = r#"{"fault":{"code":"request.unauthorized","message":"private-refusal"}}"#;
+        let head = format!(
+            "HTTP/1.1 401 Unauthorized\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
+            body.len()
+        );
+        let _ = stream.write_all(head.as_bytes());
+        let _ = stream.write_all(body.as_bytes());
+    });
+    api
+}
+
+#[test]
+fn faulted() {
+    let fixture = Fixture::new();
+    let baseline = fixture.invoke(&["span"], &refuse());
+    assert_eq!(baseline.status.code(), Some(2));
+    fixture.configure(ENABLED);
+    let refused = fixture.invoke(&["span"], &refuse());
+    assert_eq!(refused.status.code(), baseline.status.code());
+    assert_eq!(refused.stdout, baseline.stdout);
+    let success = fixture.run(&["span"], &input());
+    assert_eq!(success.status.code(), Some(0));
+    let unavailable = fixture.invoke(&["span"], "http://127.0.0.1:0");
+    assert_eq!(unavailable.status.code(), Some(2));
+    let finishes: Vec<Value> = fixture
+        .records()
+        .into_iter()
+        .filter(|atom| atom["payload"]["event"] == "cli.finish")
+        .collect();
+    assert_eq!(finishes.len(), 3);
+    let faults: Vec<&Value> = finishes
+        .iter()
+        .filter_map(|atom| atom["context"].get("locus.fault"))
+        .collect();
+    assert_eq!(faults, [&json!("request.unauthorized")]);
+    for atom in &finishes {
+        if atom["context"].get("locus.fault").is_some() {
+            assert_eq!(atom["payload"]["code"], 2);
+        }
+    }
+    let clean: Vec<&Value> = finishes
+        .iter()
+        .filter(|atom| atom["payload"]["code"] == 0)
+        .collect();
+    assert_eq!(clean.len(), 1);
+    assert!(clean[0]["context"].get("locus.fault").is_none());
+    assert!(
+        !serde_json::to_string(&finishes)
+            .unwrap()
+            .contains("private-refusal")
+    );
 }

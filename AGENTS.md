@@ -109,7 +109,8 @@ and engine diagnostic handoff.
   `http://127.0.0.1:43308`), narrowed by its window, selector and producer.
   It sends `--token` (or `LOCUS_API_TOKEN`) as a Bearer token, never observed.
   When the server reports a retained boundary, every summary carries it as
-  `retained`, so a headless return can be read against it.
+  `retained`, so a headless return can be read against it. Runs go through
+  `plumb::observation`; a refused read records its API fault code on `locus.fault`.
 - Inspection runs Locus's default analyzers unless a product turns them off:
   `trace.size`, `trace.prefix`, `trace.held`, `span.size`, `span.prefix` and
   `span.held`, each with a coarse threshold that only an unambiguous excess
