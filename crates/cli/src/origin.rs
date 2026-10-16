@@ -41,6 +41,7 @@ pub struct Origin {
 }
 
 const RETAINED: &str = "locus-retained-from";
+const REFUSALS: [&str; 3] = ["request.unauthorized", "request.invalid", "route.missing"];
 
 pub struct Opened {
     pub reader: Box<dyn BufRead>,
@@ -48,8 +49,8 @@ pub struct Opened {
 }
 
 impl Origin {
-    #[locus::trace(with = observer.map(crate::observation::Run::view))]
-    pub fn open(&self, observer: Option<&crate::observation::Run>) -> Result<Opened, String> {
+    #[locus::trace(with = plumb::observation::view())]
+    pub fn open(&self) -> Result<Opened, String> {
         let api = &self.api;
         let mut request = ureq::get(format!("{}/api/v1/atoms", api.trim_end_matches('/')));
         for (name, value) in self.params()? {
@@ -79,6 +80,9 @@ impl Origin {
         let mut body = response.into_body();
         if status != 200 {
             let detail = body.read_to_string().unwrap_or_default();
+            if let Some(code) = refusal(&detail) {
+                plumb::observation::fault(code);
+            }
             return Err(format!("api refused with {status}: {}", detail.trim()));
         }
         Ok(Opened {
@@ -107,4 +111,10 @@ impl Origin {
         }
         Ok(params)
     }
+}
+
+fn refusal(detail: &str) -> Option<&'static str> {
+    let value: serde_json::Value = serde_json::from_str(detail).ok()?;
+    let code = value.get("fault")?.get("code")?.as_str()?;
+    REFUSALS.into_iter().find(|known| *known == code)
 }

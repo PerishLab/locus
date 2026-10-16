@@ -86,8 +86,8 @@ fn main() -> ExitCode {
         },
         Command::Doctor(doctor) => diagnose(doctor),
         Command::Openapi => {
-            let observer = observation::Run::start("api.export-openapi");
-            export(observer.as_ref());
+            let observer = observation::start("api.export-openapi");
+            export();
             if let Some(observer) = observer {
                 observer.finish(0);
             }
@@ -166,7 +166,7 @@ fn run(serve: Serve) -> Result<(), String> {
     })
 }
 
-#[locus::trace(with = observer.map(observation::Run::view))]
-fn export(observer: Option<&observation::Run>) {
+#[locus::trace(with = plumb::observation::view())]
+fn export() {
     println!("{}", server::document());
 }

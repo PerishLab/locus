@@ -18,7 +18,7 @@ locus-derivation = { path = "crates/derivation", version = "=0.0.0", registry = 
 locus-macro = { path = "crates/macro", version = "=0.0.0", registry = "perish" }
 keel = { version = "0", registry = "perish" }
 keel-column = { version = "0", registry = "perish" }
-plumb = { version = "0", registry = "perish" }
+plumb = { version = "0", registry = "perish", features = ["observation"] }
 pollster = "1"
 proc-macro2 = "1"
 quote = "1"
@@ -31,3 +31,6 @@ tokio-stream = "0.1"
 toml = "0.9"
 ureq = "3"
 utoipa = { version = "5", features = ["axum_extras"] }
+
+[patch.perish]
+locus = { path = "crates/locus" }

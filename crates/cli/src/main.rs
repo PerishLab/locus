@@ -45,8 +45,8 @@ fn main() -> ExitCode {
         return ExitCode::from(1);
     }
     let command = Cli::parse().command;
-    let observer = observation::Run::start(name(&command));
-    let code = execute(command, observer.as_ref());
+    let observer = observation::start(name(&command));
+    let code = execute(command);
     if let Some(observer) = observer {
         let number = if code == ExitCode::SUCCESS {
             0
@@ -68,17 +68,17 @@ fn name(command: &Command) -> &'static str {
     }
 }
 
-#[locus::trace(with = observer.map(observation::Run::view))]
-fn execute(command: Command, observer: Option<&observation::Run>) -> ExitCode {
+#[locus::trace(with = plumb::observation::view())]
+fn execute(command: Command) -> ExitCode {
     match command {
-        Command::Inspect { root, origin } => inspect(root, &origin, observer),
-        Command::Query { role, key, origin } => query(role, key, &origin, observer),
-        Command::Span { origin } => span(&origin, observer),
+        Command::Inspect { root, origin } => inspect(root, &origin),
+        Command::Query { role, key, origin } => query(role, key, &origin),
+        Command::Span { origin } => span(&origin),
     }
 }
 
-#[locus::trace(with = observer.map(observation::Run::view))]
-fn inspect(root: PathBuf, origin: &Origin, observer: Option<&observation::Run>) -> ExitCode {
+#[locus::trace(with = plumb::observation::view())]
+fn inspect(root: PathBuf, origin: &Origin) -> ExitCode {
     let config = match read(&root) {
         Ok(config) => config,
         Err(error) => {
@@ -86,7 +86,7 @@ fn inspect(root: PathBuf, origin: &Origin, observer: Option<&observation::Run>) 
             return ExitCode::from(2);
         }
     };
-    let input = match origin.open(observer) {
+    let input = match origin.open() {
         Ok(input) => input,
         Err(error) => {
             eprintln!("locus: {error}");
@@ -94,11 +94,9 @@ fn inspect(root: PathBuf, origin: &Origin, observer: Option<&observation::Run>) 
         }
     };
     let mut inspection = Inspection::new(&config);
-    let report = match input::scan(
-        input.reader,
-        |atom, encoded| inspection.observe(&atom, encoded),
-        observer,
-    ) {
+    let report = match input::scan(input.reader, |atom, encoded| {
+        inspection.observe(&atom, encoded)
+    }) {
         Ok(_) => inspection.finish().retained(input.retained),
         Err(error) => {
             eprintln!("locus: {error}");
@@ -122,13 +120,8 @@ fn inspect(root: PathBuf, origin: &Origin, observer: Option<&observation::Run>) 
     }
 }
 
-#[locus::trace(with = observer.map(observation::Run::view))]
-fn query(
-    role: String,
-    key: Option<String>,
-    origin: &Origin,
-    observer: Option<&observation::Run>,
-) -> ExitCode {
+#[locus::trace(with = plumb::observation::view())]
+fn query(role: String, key: Option<String>, origin: &Origin) -> ExitCode {
     let selector = match Selector::new(role, key) {
         Ok(selector) => selector,
         Err(error) => {
@@ -136,7 +129,7 @@ fn query(
             return ExitCode::from(2);
         }
     };
-    let input = match origin.open(observer) {
+    let input = match origin.open() {
         Ok(input) => input,
         Err(error) => {
             eprintln!("locus: {error}");
@@ -144,7 +137,7 @@ fn query(
         }
     };
     let mut query = Query::new(selector);
-    let report = match input::scan(input.reader, |atom, _| query.observe(atom), observer) {
+    let report = match input::scan(input.reader, |atom, _| query.observe(atom)) {
         Ok(_) => query.finish().retained(input.retained),
         Err(error) => {
             eprintln!("locus: {error}");
@@ -164,9 +157,9 @@ fn query(
     ExitCode::SUCCESS
 }
 
-#[locus::trace(with = observer.map(observation::Run::view))]
-fn span(origin: &Origin, observer: Option<&observation::Run>) -> ExitCode {
-    let input = match origin.open(observer) {
+#[locus::trace(with = plumb::observation::view())]
+fn span(origin: &Origin) -> ExitCode {
+    let input = match origin.open() {
         Ok(input) => input,
         Err(error) => {
             eprintln!("locus: {error}");
@@ -174,7 +167,7 @@ fn span(origin: &Origin, observer: Option<&observation::Run>) -> ExitCode {
         }
     };
     let mut span = Span::default();
-    let report = match input::scan(input.reader, |atom, _| span.observe(&atom), observer) {
+    let report = match input::scan(input.reader, |atom, _| span.observe(&atom)) {
         Ok(_) => span.finish().retained(input.retained),
         Err(error) => {
             eprintln!("locus: {error}");
