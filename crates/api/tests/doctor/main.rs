@@ -1,3 +1,5 @@
+mod producers;
+
 use locus_api::column::Columns;
 use locus_api::registry::Registry;
 use locus_api::retention::Retention;
@@ -245,6 +247,7 @@ fn config() {
         "[retention]\ndays = -1\n",
         "[retention]\nweeks = 1\n",
         "spool = 1\n",
+        "[producers]\nnames = []\n",
     ] {
         fs::write(&path, malformed).expect("malformed");
         let report = doctor(home.path(), offline());

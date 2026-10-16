@@ -218,6 +218,14 @@ and engine diagnostic handoff.
   Undeclared, nothing is deleted. Declared, each drain cycle drops every
   producer-day partition wholly before the current day minus `days`, through
   the Store interface, so the rule holds whatever store sits behind it.
+- `doctor` names silent producers but never changes their gates. Each product
+  still switches its own observation on through its own `[locus]` file, and a
+  missing file stays silent there. The `producers` check lists every registered
+  producer with the latest modification time of the files that producer writes
+  into its buffer (`registration`, `active.jsonl`, `sealed-*`, `claimed-*`;
+  never `spool.lock`). It warns when a producer named in the optional
+  `[producers] expected` list of `locus-api.toml` never registered, or when a
+  registered producer wrote nothing for 24 hours. `serve` ignores that list.
 
 ## Ownership
 

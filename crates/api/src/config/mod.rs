@@ -1,4 +1,5 @@
 pub mod access;
+pub mod expected;
 pub mod retention;
 
 use serde::Deserialize;
@@ -12,12 +13,19 @@ pub(crate) struct Declared {
     pub(crate) retention: Option<Section>,
     #[serde(default)]
     pub(crate) reader: Vec<Reader>,
+    pub(crate) producers: Option<Producers>,
 }
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct Section {
     pub(crate) days: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Producers {
+    pub(crate) expected: Vec<String>,
 }
 
 #[derive(Deserialize)]
