@@ -167,6 +167,17 @@ and engine diagnostic handoff.
   judged nested or crossing and is refused under the scoped rule, while spans
   that end by the return still derive. The held time mapping follows the same
   rule and counts headless returns in its summary.
+- CLI `--from` and `--to` take nanoseconds since epoch or an RFC3339 instant
+  with `Z` or an explicit offset, such as `2026-10-17T21:00:00+08:00`; a
+  zoneless or malformed instant refuses rather than guessing a zone.
+- The span summary adds `incomplete` only when a read boundary can explain its
+  anomalies, listing each that can: `window.from` or `retention` for headless
+  returns or missing parents when `--from` or the retained start cuts the
+  stream, `window.to` for unclosed spans or missing parents under `--to`, and
+  `spool` when the window reaches the last 75 seconds, where a return may wait
+  in an unsealed spool for the 60 second seal and a drain. It names possible
+  boundaries, never an attributed cause: widen the window or wait and reread
+  before treating those counts as defects. A summary without anomalies omits it.
 
 ## Server
 

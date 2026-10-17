@@ -1,4 +1,6 @@
+mod incomplete;
 mod input;
+mod instant;
 mod observation;
 mod origin;
 mod signal;
@@ -6,7 +8,7 @@ mod signal;
 use clap::{Parser, Subcommand};
 use locus_derivation::inspect::{Config, Inspection};
 use locus_derivation::query::{Query, Selector};
-use locus_derivation::span::Span;
+use locus_derivation::span::{Record, Span};
 use origin::Origin;
 use std::fs;
 use std::io::{self, Write};
@@ -34,6 +36,9 @@ enum Command {
         #[command(flatten)]
         origin: Origin,
     },
+    #[command(
+        after_help = "The summary adds incomplete only when a read boundary can explain its headless, unclosed or missing-link counts: window.from, window.to, retention, or spool when the window reaches the last 75 seconds of undrained spool data. It names possible boundaries, not a cause; widen the window or wait and reread before treating those counts as defects."
+    )]
     Span {
         #[command(flatten)]
         origin: Origin,
@@ -168,6 +173,7 @@ fn span(origin: &Origin) -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    let bounds = origin.bounds(input.retained);
     let mut span = Span::default();
     let report = match input::scan(input.reader, |atom, _| span.observe(&atom)) {
         Ok(_) => span.finish().retained(input.retained),
@@ -179,9 +185,14 @@ fn span(origin: &Origin) -> ExitCode {
     let output = io::stdout();
     let mut output = output.lock();
     for record in report.records() {
-        if let Err(error) = serde_json::to_writer(&mut output, &record)
-            .and_then(|_| writeln!(output).map_err(serde_json::Error::io))
-        {
+        let written = serde_json::to_string(&record).and_then(|encoded| {
+            let line = match record {
+                Record::Summary(_) => bounds.mark(encoded),
+                _ => encoded,
+            };
+            writeln!(output, "{line}").map_err(serde_json::Error::io)
+        });
+        if let Err(error) = written {
             eprintln!("locus: cannot write derivation: {error}");
             return ExitCode::from(2);
         }
