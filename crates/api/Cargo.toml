@@ -16,7 +16,7 @@ axum = { workspace = true }
 clap = { workspace = true }
 keel = { workspace = true }
 keel-column = { workspace = true }
-locus = { workspace = true }
+locus = { version = "0", registry = "perish" }
 plumb = { workspace = true }
 pollster = { workspace = true }
 serde = { workspace = true }
