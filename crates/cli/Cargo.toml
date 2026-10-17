@@ -13,8 +13,8 @@ path = "src/main.rs"
 
 [dependencies]
 clap = { workspace = true }
-locus = { workspace = true }
-locus-derivation = { workspace = true }
+locus = { version = "0", registry = "perish" }
+locus-derivation = { version = "0", registry = "perish" }
 plumb = { workspace = true }
 serde_json = { workspace = true }
 serde = { workspace = true }

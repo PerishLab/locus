@@ -111,6 +111,10 @@ and engine diagnostic handoff.
   When the server reports a retained boundary, every summary carries it as
   `retained`, so a headless return can be read against it. Runs go through
   `plumb::observation`; a refused read records its API fault code on `locus.fault`.
+- Crates that observe themselves through `plumb::observation` (locus-cli, locus-api)
+  take `locus` and `locus-derivation` from the published registry `"0"`, the
+  same copy plumb carries, as santi does. The library crates never depend on
+  plumb, and no `[patch]` unifies the workspace locus with plumb's.
 - Inspection runs Locus's default analyzers unless a product turns them off:
   `trace.size`, `trace.prefix`, `trace.held`, `span.size`, `span.prefix` and
   `span.held`, each with a coarse threshold that only an unambiguous excess
