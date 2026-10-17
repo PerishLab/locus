@@ -8,6 +8,9 @@ pub fn scan(
 ) -> Result<u64, String> {
     let mut offset = 0_u64;
     loop {
+        if crate::signal::received().is_some() {
+            return Err(format!("interrupted before line {}", offset + 1));
+        }
         let mut line = Vec::new();
         let bytes = reader
             .read_until(b'\n', &mut line)

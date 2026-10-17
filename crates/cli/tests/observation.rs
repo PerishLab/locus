@@ -6,7 +6,9 @@ use serde_json::{Value, json};
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::path::PathBuf;
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
+use std::sync::mpsc;
+use std::time::Duration;
 
 const ENABLED: &str = "[locus]\nenabled = true\nendpoint = 'http://127.0.0.1:0'\n";
 
@@ -241,4 +243,55 @@ fn faulted() {
             .unwrap()
             .contains("private-refusal")
     );
+}
+
+fn stream(line: String, ready: mpsc::Sender<()>) -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let api = format!("http://{}", listener.local_addr().unwrap());
+    std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        let _ = stream.write_all(b"HTTP/1.1 200 OK\r\nconnection: close\r\n\r\n");
+        let _ = ready.send(());
+        while stream.write_all(line.as_bytes()).is_ok() {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    });
+    api
+}
+
+#[cfg(unix)]
+#[test]
+fn terminated() {
+    let fixture = Fixture::new();
+    fixture.configure(ENABLED);
+    for (signal, code) in [("TERM", 143), ("INT", 130)] {
+        let (ready, started) = mpsc::channel();
+        let mut child = Command::new(env!("CARGO_BIN_EXE_locus"))
+            .current_dir(fixture.product.path())
+            .env("HOME", fixture.home.path())
+            .args(["span", "--api", &stream(input(), ready)])
+            .stdout(Stdio::null())
+            .spawn()
+            .unwrap();
+        started.recv_timeout(Duration::from_secs(30)).unwrap();
+        let kill = Command::new("kill")
+            .args(["-s", signal, &child.id().to_string()])
+            .status();
+        assert!(kill.unwrap().success());
+        assert_eq!(child.wait().unwrap().code(), Some(code));
+    }
+    let atoms = fixture.records();
+    let edge = |edge: &str| {
+        atoms
+            .iter()
+            .filter(|atom| atom["source"]["edge"] == edge)
+            .count()
+    };
+    assert!(edge("enter") > 0);
+    assert_eq!(edge("enter"), edge("return"));
+    for code in [143, 130] {
+        assert!(atoms.iter().any(
+            |atom| atom["payload"]["event"] == "cli.finish" && atom["payload"]["code"] == code
+        ));
+    }
 }
