@@ -18,6 +18,7 @@ locus-derivation = { version = "0", registry = "perish" }
 plumb = { workspace = true }
 serde_json = { workspace = true }
 serde = { workspace = true }
+signal-hook = { workspace = true }
 ureq = { workspace = true }
 
 [dev-dependencies]

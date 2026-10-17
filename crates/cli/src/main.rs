@@ -1,6 +1,7 @@
 mod input;
 mod observation;
 mod origin;
+mod signal;
 
 use clap::{Parser, Subcommand};
 use locus_derivation::inspect::{Config, Inspection};
@@ -45,19 +46,20 @@ fn main() -> ExitCode {
         return ExitCode::from(1);
     }
     let command = Cli::parse().command;
+    signal::watch();
     let observer = observation::start(name(&command));
     let code = execute(command);
+    let number = signal::received().unwrap_or(if code == ExitCode::SUCCESS {
+        0
+    } else if code == ExitCode::from(1) {
+        1
+    } else {
+        2
+    });
     if let Some(observer) = observer {
-        let number = if code == ExitCode::SUCCESS {
-            0
-        } else if code == ExitCode::from(1) {
-            1
-        } else {
-            2
-        };
-        observer.finish(number);
+        observer.finish(number.into());
     }
-    code
+    ExitCode::from(number)
 }
 
 fn name(command: &Command) -> &'static str {

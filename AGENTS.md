@@ -111,6 +111,10 @@ and engine diagnostic handoff.
   When the server reports a retained boundary, every summary carries it as
   `retained`, so a headless return can be read against it. Runs go through
   `plumb::observation`; a refused read records its API fault code on `locus.fault`.
+  SIGINT and SIGTERM stop a run cooperatively: the scan refuses before its
+  next record, every traced function returns, and the run finishes and exits
+  with 130 or 143. A read still blocked two seconds later exits with the same
+  code and leaves its spans open, as a kill does.
 - Crates that observe themselves through `plumb::observation` (locus-cli, locus-api)
   take `locus` and `locus-derivation` from the published registry `"0"`, the
   same copy plumb carries, as santi does. The library crates never depend on

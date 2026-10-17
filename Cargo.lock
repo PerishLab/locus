@@ -511,7 +511,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1098,12 +1098,12 @@ dependencies = [
 
 [[package]]
 name = "locus"
-version = "0.11.0"
+version = "0.12.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "e65f745d304cf123e5c18e4ca242611a2ac953ff80baf85d26078a27d4bc4873"
+checksum = "625879170730ff0e855fb92462891186b9ccccf775b0fbfc43f888ce7f973809"
 dependencies = [
  "getrandom 0.3.4",
- "locus-macro 0.11.0",
+ "locus-macro 0.12.0",
  "serde",
  "serde_json",
 ]
@@ -1116,7 +1116,7 @@ dependencies = [
  "clap",
  "keel",
  "keel-column",
- "locus 0.11.0",
+ "locus 0.12.0",
  "plumb",
  "pollster",
  "serde",
@@ -1133,13 +1133,14 @@ name = "locus-cli"
 version = "0.0.0"
 dependencies = [
  "clap",
- "locus 0.11.0",
+ "locus 0.12.0",
  "locus-api",
- "locus-derivation 0.11.0",
+ "locus-derivation 0.12.0",
  "plumb",
  "serde",
  "serde_json",
  "sha2",
+ "signal-hook",
  "tokio",
  "ureq",
 ]
@@ -1156,11 +1157,11 @@ dependencies = [
 
 [[package]]
 name = "locus-derivation"
-version = "0.11.0"
+version = "0.12.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "a8145bb6423247a679ac0cea68857c5e5cd42b05db88ff90f8d7ba1a568a3e98"
+checksum = "81c63166350f613c6bc5ee8e761a6e44956556e1a7fa3dd9d7cf49f1bd0ca314"
 dependencies = [
- "locus 0.11.0",
+ "locus 0.12.0",
  "serde",
  "serde_json",
  "toml",
@@ -1177,9 +1178,9 @@ dependencies = [
 
 [[package]]
 name = "locus-macro"
-version = "0.11.0"
+version = "0.12.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "e459c29c2b6f9a88d5b3cf2bd89f29d85846194934b04fd55325c88a7d674a01"
+checksum = "8b5666bcd83624505b669f1d708008994e2f7467ebe3c2d726e6a5040893660b"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1365,13 +1366,13 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "plumb"
-version = "0.103.1"
+version = "0.103.2"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "688eee3cef9356de9c153b0282c6f7da9d5f884a6f39a567a7f112fbb400fc28"
+checksum = "53b86531f48dac6a4c609137c420d56762e87cbed25a87760b0345539ae9de84"
 dependencies = [
  "base64 0.22.1",
  "clap",
- "locus 0.11.0",
+ "locus 0.12.0",
  "object",
  "pin-project-lite",
  "plumb-macro",
@@ -1388,9 +1389,9 @@ dependencies = [
 
 [[package]]
 name = "plumb-macro"
-version = "0.103.1"
+version = "0.103.2"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "6d4d17f4d42db77464c3973539656aabc372365e1fc2bc66e4ba2d0ad46d5d60"
+checksum = "2c211b8c9c7b8d03c603889b5e752a1ba1eb6bc0ac8a6dfe36c53cd16d417eb4"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1514,7 +1515,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1686,6 +1687,16 @@ name = "shlex"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
+
+[[package]]
+name = "signal-hook"
+version = "0.3.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d881a16cf4426aa584979d30bd82cb33429027e42122b169753d6ef1085ed6e2"
+dependencies = [
+ "libc",
+ "signal-hook-registry",
+]
 
 [[package]]
 name = "signal-hook-registry"
@@ -1905,7 +1916,7 @@ dependencies = [
  "getrandom 0.4.3",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
