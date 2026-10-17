@@ -6,7 +6,7 @@ pub(super) mod stub;
 use serde_json::{Value, json};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::Output;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 pub(super) const CONFIG: &str = r#"
@@ -100,7 +100,7 @@ pub(super) fn framed(at: u64, span: &str, edge: &str) -> String {
 }
 
 pub(super) fn run(root: &Root, input: &str) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_locus"))
+    stub::locus()
         .arg("inspect")
         .arg(root.path())
         .args(["--api", &stub::serve(input)])

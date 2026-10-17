@@ -13,7 +13,7 @@ use locus_api::store::{Segments, Store};
 use serde_json::json;
 use std::fs;
 use std::path::Path;
-use std::process::{Command, Output};
+use std::process::Output;
 use std::sync::Arc;
 use std::sync::mpsc;
 use std::thread;
@@ -136,10 +136,7 @@ fn locus(root: Option<&Path>, args: &[&str]) -> Output {
     if let Some(root) = &root {
         args.insert(1, root);
     }
-    Command::new(env!("CARGO_BIN_EXE_locus"))
-        .args(&args)
-        .output()
-        .expect("locus")
+    stub::locus().args(&args).output().expect("locus")
 }
 
 fn record(spool: &Path) {
@@ -231,7 +228,7 @@ fn token() {
         .expect("reader");
     let served = guarded(Retention::default(), readers);
     let query = |extra: &[&str], env: Option<&str>| {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_locus"));
+        let mut command = stub::locus();
         command
             .args(["query", "locus.trace", "--api", &served.api])
             .args(extra)
