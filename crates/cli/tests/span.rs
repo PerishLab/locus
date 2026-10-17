@@ -22,10 +22,21 @@ fn atom(at: u64, span: &str, edge: &str, function: &str) -> String {
 }
 
 fn run(input: &str) -> Output {
+    windowed(input, &[])
+}
+
+fn windowed(input: &str, bounds: &[&str]) -> Output {
     stub::locus()
         .args(["span", "--api", &stub::serve(input)])
+        .args(bounds)
         .output()
         .expect("output")
+}
+
+fn incomplete(input: &str, bounds: &[&str]) -> Value {
+    let output = windowed(input, bounds);
+    assert!(output.status.success(), "{output:?}");
+    records(&output).last().expect("summary")["incomplete"].clone()
 }
 
 fn records(output: &Output) -> Vec<Value> {
@@ -219,4 +230,42 @@ fn misreturned() {
         message.contains("returns from another declaration"),
         "{message}"
     );
+}
+
+#[test]
+fn cutoff() {
+    let input = [atom(5, "a", "return", "cut"), atom(6, "b", "enter", "open")].join("\n");
+    let zoned = [
+        "--from",
+        "1970-01-01T08:00:00+08:00",
+        "--to",
+        "1970-01-01T00:00:01Z",
+    ];
+    assert_eq!(
+        incomplete(&input, &zoned),
+        json!(["window.from", "window.to"])
+    );
+    assert_eq!(incomplete(&input, &[]), json!(["spool"]));
+}
+
+#[test]
+fn widened() {
+    let input = [
+        atom(0, "a", "enter", "outer"),
+        atom(30, "a", "return", "outer"),
+    ]
+    .join("\n");
+    assert_eq!(
+        incomplete(&input, &["--from", "0", "--to", "1000"]),
+        Value::Null
+    );
+    assert_eq!(incomplete(&input, &[]), Value::Null);
+}
+
+#[test]
+fn unparsed() {
+    let output = windowed("", &["--from", "2026-10-17T21:00:00"]);
+    assert_eq!(output.status.code(), Some(2));
+    let message = String::from_utf8_lossy(&output.stderr);
+    assert!(message.contains("RFC3339"), "{message}");
 }

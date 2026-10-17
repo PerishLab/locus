@@ -1,3 +1,4 @@
+use crate::incomplete::Bounds;
 use clap::Args;
 use std::io::{BufRead, BufReader};
 
@@ -12,14 +13,16 @@ pub struct Origin {
     api: String,
     #[arg(
         long,
-        value_name = "NANOSECONDS",
-        help = "Keep Atoms at or after this instant (ns since epoch)"
+        value_name = "INSTANT",
+        value_parser = crate::instant::parse,
+        help = "Keep Atoms at or after this instant: ns since epoch, or RFC3339 with a zone such as 2026-10-17T21:00:00+08:00"
     )]
     from: Option<u64>,
     #[arg(
         long,
-        value_name = "NANOSECONDS",
-        help = "Keep Atoms before this instant (ns since epoch)"
+        value_name = "INSTANT",
+        value_parser = crate::instant::parse,
+        help = "Keep Atoms before this instant: ns since epoch, or RFC3339 with a zone such as 2026-10-17T13:00:00Z"
     )]
     to: Option<u64>,
     #[arg(
@@ -89,6 +92,14 @@ impl Origin {
             reader: Box::new(BufReader::new(body.into_reader())),
             retained,
         })
+    }
+
+    pub fn bounds(&self, retained: Option<u64>) -> Bounds {
+        Bounds {
+            from: self.from,
+            to: self.to,
+            retained,
+        }
     }
 
     fn params(&self) -> Result<Vec<(&'static str, String)>, String> {
