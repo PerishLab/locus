@@ -2,7 +2,7 @@
 mod stub;
 
 use serde_json::{Value, json};
-use std::process::{Command, Output};
+use std::process::Output;
 
 fn atom(at: u64, span: &str, edge: &str, function: &str) -> String {
     json!({
@@ -22,7 +22,7 @@ fn atom(at: u64, span: &str, edge: &str, function: &str) -> String {
 }
 
 fn run(input: &str) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_locus"))
+    stub::locus()
         .args(["span", "--api", &stub::serve(input)])
         .output()
         .expect("output")

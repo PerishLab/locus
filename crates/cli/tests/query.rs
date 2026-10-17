@@ -2,7 +2,7 @@
 mod stub;
 
 use serde_json::{Value, json};
-use std::process::{Command, Output};
+use std::process::Output;
 
 fn atom(trace: Option<&str>, span: Option<&str>, payload: &str) -> String {
     let mut context = serde_json::Map::new();
@@ -22,7 +22,7 @@ fn atom(trace: Option<&str>, span: Option<&str>, payload: &str) -> String {
 }
 
 fn run(args: &[&str], input: &str) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_locus"))
+    stub::locus()
         .args(args)
         .args(["--api", &stub::serve(input)])
         .output()
@@ -122,4 +122,11 @@ fn role() {
             .expect("stderr")
             .contains("invalid role")
     );
+}
+
+#[test]
+fn unseated() {
+    let output = run(&["query", "locus.trace"], "");
+    assert!(output.status.success());
+    assert!(!stub::unseated().exists());
 }

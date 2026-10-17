@@ -3,7 +3,6 @@ mod fixture;
 
 use fixture::{DEFAULTS, Root, framed, records, run, stub};
 use serde_json::json;
-use std::process::Command;
 
 const SECOND: u64 = 1_000_000_000;
 
@@ -127,7 +126,7 @@ fn repeated() {
 #[test]
 fn absent() {
     let root = Root::new(None);
-    let output = Command::new(env!("CARGO_BIN_EXE_locus"))
+    let output = stub::locus()
         .arg("inspect")
         .arg(root.path().join("absent"))
         .args(["--api", &stub::serve("")])

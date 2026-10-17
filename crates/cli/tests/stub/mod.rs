@@ -1,5 +1,7 @@
 use std::io::{Read, Write};
 use std::net::TcpListener;
+use std::path::PathBuf;
+use std::process::Command;
 use std::thread;
 
 pub(crate) fn serve(body: &str) -> String {
@@ -25,4 +27,18 @@ pub(crate) fn serve(body: &str) -> String {
         stream.write_all(body.as_bytes()).expect("body");
     });
     api
+}
+
+pub(crate) fn unseated() -> PathBuf {
+    std::env::temp_dir().join(format!("locus-cli-test-unseated-{}", std::process::id()))
+}
+
+pub(crate) fn locus() -> Command {
+    let home = unseated();
+    let mut command = Command::new(env!("CARGO_BIN_EXE_locus"));
+    command
+        .env("HOME", &home)
+        .env("USERPROFILE", &home)
+        .env("LOCALAPPDATA", &home);
+    command
 }
