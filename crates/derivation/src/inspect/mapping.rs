@@ -1,5 +1,5 @@
 use super::model::{Group, Measurement};
-use crate::derive::{Ledger, Links};
+use crate::derive::{Held, Ledger, Links};
 use locus::{Atom, Edge, Role};
 use serde::Serialize;
 use serde_json::Value;
@@ -60,6 +60,14 @@ pub(super) struct Span {
     spans: u64,
     inclusive: u128,
     held: u128,
+}
+
+impl Span {
+    fn add(&mut self, held: &Held) {
+        self.spans += 1;
+        self.inclusive += held.inclusive;
+        self.held += held.held;
+    }
 }
 
 #[derive(Default)]
@@ -135,14 +143,12 @@ impl State {
                     links: derived.links,
                 };
                 let mut groups: BTreeMap<String, Span> = BTreeMap::new();
-                for held in derived.held {
-                    let Some(key) = held.group else {
-                        continue;
-                    };
-                    let span = groups.entry(key).or_default();
-                    span.spans += 1;
-                    span.inclusive += held.inclusive;
-                    span.held += held.held;
+                for (key, held) in derived
+                    .held
+                    .iter()
+                    .filter_map(|held| Some((held.group.clone()?, held)))
+                {
+                    groups.entry(key).or_default().add(held);
                 }
                 groups
                     .into_iter()
