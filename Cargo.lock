@@ -1008,9 +1008,9 @@ dependencies = [
 
 [[package]]
 name = "keel"
-version = "0.19.0"
+version = "0.20.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "d9b8f09a3973c6efe70651db3f9db2d80eff2a31b28378cd1a7c560e5c3458a3"
+checksum = "4e6e9752f4e3851036af121e6aa1012cc94f5409e70df6cd97b5118f88e96606"
 dependencies = [
  "axum",
  "getrandom 0.3.4",
@@ -1025,9 +1025,9 @@ dependencies = [
 
 [[package]]
 name = "keel-column"
-version = "0.19.0"
+version = "0.20.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "1e957ba50ff14f6ea926454cb7824a95d3fd4f70590d7d8e12bf1c70ddbcd201"
+checksum = "402b5c7de4f1d82a14ff48d30b6b2e71a31ff810ecb71309f03b1e1996afd89e"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -1039,9 +1039,9 @@ dependencies = [
 
 [[package]]
 name = "keel-macro"
-version = "0.19.0"
+version = "0.20.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "e32a3373fba831c16c0fca10bb7090ca1fa9b367fc9599f816dde397a4e0304b"
+checksum = "cac4ed5652a8d7a94b57cff916a6bfd2485b02281c826a9fce31b81e84c2b9e6"
 dependencies = [
  "proc-macro2",
  "quote",
