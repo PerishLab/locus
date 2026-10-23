@@ -5,6 +5,10 @@ use std::process::Command;
 use std::thread;
 
 pub(crate) fn serve(body: &str) -> String {
+    response(body, body.len())
+}
+
+pub(crate) fn response(body: &str, length: usize) -> String {
     let listener = TcpListener::bind("127.0.0.1:0").expect("listen");
     let api = format!("http://{}", listener.local_addr().expect("address"));
     let body = body.to_owned();
@@ -21,7 +25,7 @@ pub(crate) fn serve(body: &str) -> String {
         }
         let head = format!(
             "HTTP/1.1 200 OK\r\ncontent-type: application/x-ndjson\r\ncontent-length: {}\r\nconnection: close\r\n\r\n",
-            body.len()
+            length
         );
         stream.write_all(head.as_bytes()).expect("head");
         stream.write_all(body.as_bytes()).expect("body");

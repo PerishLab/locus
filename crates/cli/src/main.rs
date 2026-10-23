@@ -1,3 +1,4 @@
+mod analysis;
 mod incomplete;
 mod input;
 mod instant;
@@ -24,6 +25,18 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    #[command(
+        about = "Inspect one API read with span statistics and bounded finding evidence",
+        after_help = "Emits inspect/span records, evidence groups and a final locus.analyze/v1 summary. A missing final summary means incomplete output. Exit 0: clean; 1: findings; 2: refused. Captured input is bounded, not an ingestion watermark."
+    )]
+    Analyze {
+        #[arg(default_value = ".")]
+        root: PathBuf,
+        #[command(flatten)]
+        origin: Origin,
+        #[command(flatten)]
+        limits: analysis::Limits,
+    },
     Inspect {
         #[arg(default_value = ".")]
         root: PathBuf,
@@ -69,6 +82,7 @@ fn main() -> ExitCode {
 
 fn name(command: &Command) -> &'static str {
     match command {
+        Command::Analyze { .. } => "analyze",
         Command::Inspect { .. } => "inspect",
         Command::Query { .. } => "query",
         Command::Span { .. } => "span",
@@ -78,6 +92,11 @@ fn name(command: &Command) -> &'static str {
 #[locus::trace(with = plumb::observation::view())]
 fn execute(command: Command) -> ExitCode {
     match command {
+        Command::Analyze {
+            root,
+            origin,
+            limits,
+        } => analysis::execute(&root, &origin, limits),
         Command::Inspect { root, origin } => inspect(root, &origin),
         Command::Query { role, key, origin } => query(role, key, &origin),
         Command::Span { origin } => span(&origin),

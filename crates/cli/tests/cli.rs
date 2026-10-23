@@ -1,3 +1,6 @@
+#[path = "inspect/analysis.rs"]
+mod analysis;
+
 #[path = "inspect/fixture.rs"]
 mod fixture;
 

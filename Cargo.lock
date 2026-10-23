@@ -1141,7 +1141,7 @@ dependencies = [
  "clap",
  "locus 0.13.0",
  "locus-api",
- "locus-derivation 0.13.0",
+ "locus-derivation",
  "plumb",
  "serde",
  "serde_json",
@@ -1154,18 +1154,6 @@ dependencies = [
 [[package]]
 name = "locus-derivation"
 version = "0.0.0"
-dependencies = [
- "locus 0.0.0",
- "serde",
- "serde_json",
- "toml",
-]
-
-[[package]]
-name = "locus-derivation"
-version = "0.13.0"
-source = "sparse+https://cargo.perish.uk/"
-checksum = "ebb49b27ca550f548597b0ace4b392c45780770514c6fa45a15c58f54317713d"
 dependencies = [
  "locus 0.13.0",
  "serde",

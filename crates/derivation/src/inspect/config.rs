@@ -45,6 +45,7 @@ enum Shape {
     Held { group: Role },
 }
 
+#[derive(Serialize)]
 pub struct Analyzer {
     pub id: String,
     pub mapping: Mapping,
@@ -69,6 +70,7 @@ pub enum Origin {
     Disabled,
 }
 
+#[derive(Serialize)]
 pub struct Config {
     analyzers: Vec<Analyzer>,
     defaults: BTreeMap<String, Origin>,
