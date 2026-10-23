@@ -14,14 +14,14 @@ path = "src/main.rs"
 [dependencies]
 clap = { workspace = true }
 locus = { version = "0", registry = "perish" }
-locus-derivation = { version = "0", registry = "perish" }
+locus-derivation = { workspace = true }
 plumb = { workspace = true }
 serde_json = { workspace = true }
+sha2 = { workspace = true }
 serde = { workspace = true }
 signal-hook = { workspace = true }
 ureq = { workspace = true }
 
 [dev-dependencies]
 locus-api = { workspace = true }
-sha2 = { workspace = true }
 tokio = { workspace = true }

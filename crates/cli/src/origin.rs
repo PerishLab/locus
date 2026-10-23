@@ -1,8 +1,9 @@
 use crate::incomplete::Bounds;
 use clap::Args;
+use serde::Serialize;
 use std::io::{BufRead, BufReader};
 
-#[derive(Args)]
+#[derive(Args, Serialize)]
 pub struct Origin {
     #[arg(
         long,
@@ -33,6 +34,7 @@ pub struct Origin {
     select: Option<String>,
     #[arg(long, help = "Keep Atoms from this producer only")]
     producer: Option<String>,
+    #[serde(skip)]
     #[arg(
         long,
         value_name = "TOKEN",

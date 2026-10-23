@@ -8,7 +8,7 @@ publish = ["perish"]
 description = "Locus query, span and inspection derivation over an ordered Atom sequence"
 
 [dependencies]
-locus = { workspace = true }
+locus = { version = "0", registry = "perish" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 toml = { workspace = true }

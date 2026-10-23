@@ -9,9 +9,14 @@ const FLOOR: u64 = 5;
 const MINIMUM: usize = 8;
 const MAXIMUM: usize = 64;
 
+#[derive(Serialize)]
+#[serde(tag = "kind")]
 pub enum Mapping {
+    #[serde(rename = "representation-bytes")]
     Bytes { group: Role },
+    #[serde(rename = "dominant-content-prefix-percent")]
     Prefix { group: Role },
+    #[serde(rename = "held-time-nanoseconds")]
     Held { group: Role },
 }
 
@@ -73,6 +78,7 @@ impl Span {
 #[derive(Default)]
 pub(super) struct Prefix {
     atoms: u64,
+    pending: Vec<Vec<u8>>,
     prefixes: BTreeMap<Vec<u8>, u64>,
 }
 
@@ -176,9 +182,23 @@ impl Prefix {
             .atoms
             .checked_add(1)
             .ok_or_else(|| "group Atom count overflowed".to_string())?;
-        let Some(content) = content(atom) else {
+        let content = content(atom);
+        if self.atoms < FLOOR {
+            if let Some(content) = content {
+                self.pending.push(content);
+            }
             return Ok(());
-        };
+        }
+        for pending in std::mem::take(&mut self.pending) {
+            self.accumulate(&pending)?;
+        }
+        if let Some(content) = content {
+            self.accumulate(&content)?;
+        }
+        Ok(())
+    }
+
+    fn accumulate(&mut self, content: &[u8]) -> Result<(), String> {
         let ceiling = content.len().min(MAXIMUM);
         for length in MINIMUM..=ceiling {
             let count = self.prefixes.entry(content[..length].to_vec()).or_default();

@@ -6,7 +6,8 @@ use config::Analyzer;
 pub use config::Config;
 use locus::Atom;
 use mapping::{State, Unmeasured};
-use model::{Finding, Record, Summary};
+use model::Summary;
+pub use model::{Finding, Record};
 
 pub struct Report {
     findings: Vec<Finding>,
@@ -17,6 +18,10 @@ impl Report {
     pub fn retained(mut self, retained: Option<u64>) -> Self {
         self.summary.retain(retained);
         self
+    }
+
+    pub fn findings(&self) -> &[Finding] {
+        &self.findings
     }
 
     pub fn clean(&self) -> bool {

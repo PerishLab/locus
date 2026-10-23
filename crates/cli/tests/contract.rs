@@ -1,13 +1,14 @@
 use sha2::{Digest, Sha256};
 use std::process::Command;
 
-const HELP: &str = "d4b674b5bae208e40978d21056832ba77d862da6680a207cb1429e5529431ba8";
+const HELP: &str = "03462d8f41c15a4a86e759a2d3b1eda9d85e3575e5ac0bb8f7dad478938a09aa";
 
 #[test]
 fn help() {
     let tree = [
         vec!["--help"],
         vec!["inspect", "--help"],
+        vec!["analyze", "--help"],
         vec!["query", "--help"],
         vec!["span", "--help"],
     ]

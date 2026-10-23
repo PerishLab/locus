@@ -116,9 +116,11 @@ and engine diagnostic handoff.
   with 130 or 143. A read still blocked two seconds later exits with the same
   code and leaves its spans open, as a kill does.
 - Crates that observe themselves through `plumb::observation` (locus-cli, locus-api)
-  take `locus` and `locus-derivation` from the published registry `"0"`, the
-  same copy plumb carries, as santi does. The library crates never depend on
-  plumb, and no `[patch]` unifies the workspace locus with plumb's.
+  take `locus` from the published registry `"0"`, the same copy plumb carries.
+  `locus-derivation` also consumes that published Atom contract and never depends
+  on plumb; the CLI consumes workspace derivation so its adapters and new
+  derivations are proved together without a locus -> plumb -> locus cycle.
+  No `[patch]` unifies the workspace engine with plumb's.
 - Inspection runs Locus's default analyzers unless a product turns them off:
   `trace.size`, `trace.prefix`, `trace.held`, `span.size`, `span.prefix` and
   `span.held`, each with a coarse threshold that only an unambiguous excess
@@ -136,6 +138,32 @@ and engine diagnostic handoff.
   the refused spans once in its summary, however many held analyzers run; it
   groups by the entering record's own Context and never inherits a key from an
   enclosing frame.
+- `locus analyze [root]` reads the API once and captures at most `--max-bytes`
+  (default and ceiling 512 MiB) in memory. It refuses more than `--max-records`
+  (default and ceiling one million), a line over 1 MiB, a missing final API
+  newline, or more than 64 effective analyzers. These bound input, not peak RSS.
+  It feeds the identical sequence to inspection and span, then replays that
+  capture to the derivation library's finding evidence projection. Nothing is
+  emitted until capture, parsing and all derivations succeed. Existing commands
+  retain their contracts. No local-file input or server snapshot is added.
+- Analyze emits existing inspect/span JSONL records, evidence groups keyed by
+  finding role/key, and a final `locus.analyze/v1` summary with request bounds
+  and filters, retained boundary, version, byte/record counts, exact input
+  SHA-256, effective configuration and limits. Tokens are omitted. The summary
+  seals only this read, never an ingestion watermark or complete history;
+  a missing final summary means incomplete output. Exit codes are 0 clean,
+  1 findings and 2 refused, with signal exits as above.
+- Finding evidence reports exact matching record/encoded-byte totals, up to four
+  first-seen metadata references (ordinal, optional id, time, producer, context,
+  source) and up to 32 first-seen producer/source contribution counters per
+  group. It counts omitted references and records outside retained contributions.
+  Counts are not function duration, prefix-matching attribution or causes.
+  Null origins remain unknown; contexts are samples, never a unique command or
+  invocation assignment. At most 10,000 groups and 16 MiB of serialized identity,
+  reference and contribution content are admitted globally; identity overflow
+  refuses while content overflow increments omissions. Counters and envelopes
+  add bounded overhead. No payload is copied into evidence. Input is released
+  on exit and no temporary files are created.
 - CLI query selects one exact role with an optional exact key. It enumerates identities or replays matching logical
   Atoms, then reports complete coverage without inferring lifecycle, ownership,
   causality, or liveness.
