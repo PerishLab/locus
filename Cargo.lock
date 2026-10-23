@@ -1104,12 +1104,12 @@ dependencies = [
 
 [[package]]
 name = "locus"
-version = "0.13.0"
+version = "0.14.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "40666deea22d6694c5632a6b75cbdd9236f1962a3857fafd3a0625d8129284b2"
+checksum = "8a4f1d63cdbc0d1dc563ab4e592b0f67ff3459bc007a3964db4b36aeb0c80d4b"
 dependencies = [
  "getrandom 0.3.4",
- "locus-macro 0.13.0",
+ "locus-macro 0.14.0",
  "serde",
  "serde_json",
 ]
@@ -1122,7 +1122,7 @@ dependencies = [
  "clap",
  "keel",
  "keel-column",
- "locus 0.13.0",
+ "locus 0.14.0",
  "plumb",
  "pollster",
  "serde",
@@ -1139,7 +1139,7 @@ name = "locus-cli"
 version = "0.0.0"
 dependencies = [
  "clap",
- "locus 0.13.0",
+ "locus 0.14.0",
  "locus-api",
  "locus-derivation",
  "plumb",
@@ -1155,7 +1155,7 @@ dependencies = [
 name = "locus-derivation"
 version = "0.0.0"
 dependencies = [
- "locus 0.13.0",
+ "locus 0.14.0",
  "serde",
  "serde_json",
  "toml",
@@ -1172,9 +1172,9 @@ dependencies = [
 
 [[package]]
 name = "locus-macro"
-version = "0.13.0"
+version = "0.14.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "751074fb31f12465a949fa60734ddaac9ce57dc9a45a04dc0695136685f8b8eb"
+checksum = "0f6d8373393b62f4f2a2bdf7ea42b4bddf3b9a4719d7d52fb9679726c73130ce"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1367,7 +1367,7 @@ dependencies = [
  "base64 0.22.1",
  "clap",
  "dunce",
- "locus 0.13.0",
+ "locus 0.14.0",
  "object",
  "pin-project-lite",
  "plumb-macro",
