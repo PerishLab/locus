@@ -91,7 +91,7 @@ and engine diagnostic handoff.
 - JSONL is the cold-start codec, not the permanent logical encoding.
 - The buffer preserves one encoded record boundary across concurrent engines
   and processes.
-- Derivation (query selection, span pairing, held time and crossing refusal,
+- Derivation (query selection, tree expansion, span pairing, held time and crossing refusal,
   inspect mappings, thresholds, coverage and summaries) lives in the
   `locus-derivation` library, so any reader of Atoms answers with the same
   law. It observes one Atom at a time and finishes into a report.
@@ -167,6 +167,24 @@ and engine diagnostic handoff.
 - CLI query selects one exact role with an optional exact key. It enumerates identities or replays matching logical
   Atoms, then reports complete coverage without inferring lifecycle, ownership,
   causality, or liveness.
+- CLI tree reads one API window as a stream and selects seed Atoms by exact
+  conditions: `context.ROLE=KEY` or a top-level `payload.FIELD=VALUE`, where a
+  string matches equal text and a number or boolean matches its JSON text.
+  Repeated conditions all hold. It expands each seed only through the two kinds
+  of nesting evidence: containment within one trace, and a `locus.parent` link
+  that resolves to the one other trace binding that span. An unobserved parent,
+  a parent span bound in several traces, or a trace binding two parents leaves
+  that trace unlinked. These links are counted per tree as missing, ambiguous
+  or conflicting, never guessed, and a root carrying one is detached. A parent
+  cycle roots at its least trace key. Each tree reports its root, traces,
+  records, time bounds and links, then its seed Atoms and the Atoms matching
+  separate show conditions, verbatim and with multiplicity. Atom id
+  representation is never read as invocation identity. The final
+  `locus.tree/v1` summary carries the request, conditions, bounds, `retained`
+  and the window incompleteness marks used by span. It holds only trace/span
+  keys and matching Atoms, never raw input. Explicit limits on trees, held
+  Atoms and tracked keys refuse without partial output. A tree claims what the
+  window holds, not lifecycle, success, causality or complete history.
 - CLI span pairs one entering source record with
   its returning record. It reports elapsed and held time per traced declaration
   and names every entered span that never returned. Held time reads

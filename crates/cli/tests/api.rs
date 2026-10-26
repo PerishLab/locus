@@ -88,9 +88,10 @@ fn retained() {
         .floor(locus_api::retention::now())
         .expect("floor");
     let root = Root::new(Some(CONFIG));
-    let cases: [(Option<&Path>, &[&str]); 3] = [
+    let cases: [(Option<&Path>, &[&str]); 4] = [
         (None, &["span"]),
         (None, &["query", "locus.trace"]),
+        (None, &["tree", "--seed", "context.locus.trace=absent"]),
         (Some(root.path()), &["inspect"]),
     ];
     for (root, args) in cases {

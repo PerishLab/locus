@@ -5,6 +5,7 @@ mod instant;
 mod observation;
 mod origin;
 mod signal;
+mod tree;
 
 use clap::{Parser, Subcommand};
 use locus_derivation::inspect::{Config, Inspection};
@@ -56,6 +57,16 @@ enum Command {
         #[command(flatten)]
         origin: Origin,
     },
+    #[command(
+        about = "Expand seed Atoms to their linked trace trees",
+        after_help = "A tree joins traces only through same-trace containment and resolved locus.parent links: a parent resolves to the one other trace binding that span. Unobserved, ambiguous or conflicting parents leave a trace unlinked and are counted; a detached root carries such a parent. Emits one tree record per tree followed by its seed and shown Atoms verbatim, then a final locus.tree/v1 summary. A missing final summary means incomplete output. --select and --producer narrow the read itself, so trees see only that slice. Trees show what the read window holds; they claim no lifecycle, success, cause or invocation identity. Exit 0: emitted; 2: refused without partial output."
+    )]
+    Tree {
+        #[command(flatten)]
+        selection: tree::Selection,
+        #[command(flatten)]
+        origin: Origin,
+    },
 }
 
 fn main() -> ExitCode {
@@ -86,6 +97,7 @@ fn name(command: &Command) -> &'static str {
         Command::Inspect { .. } => "inspect",
         Command::Query { .. } => "query",
         Command::Span { .. } => "span",
+        Command::Tree { .. } => "tree",
     }
 }
 
@@ -100,6 +112,7 @@ fn execute(command: Command) -> ExitCode {
         Command::Inspect { root, origin } => inspect(root, &origin),
         Command::Query { role, key, origin } => query(role, key, &origin),
         Command::Span { origin } => span(&origin),
+        Command::Tree { selection, origin } => tree::execute(&selection, &origin),
     }
 }
 

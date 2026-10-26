@@ -1,5 +1,4 @@
-#[path = "stub/mod.rs"]
-mod stub;
+use super::stub;
 
 use serde_json::{Value, json};
 use std::process::Output;
