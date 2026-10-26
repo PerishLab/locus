@@ -31,7 +31,7 @@ impl Columns {
             .and_then(|table| table.sort(&[TRACE]))
             .and_then(|table| table.grain(Some(PRODUCER), DAY))
             .map_err(text)?;
-        let store = keel_column::Store::open(Arc::new(core), table, &home.join("column"))
+        let store = keel_column::Store::adopt(Arc::new(core), table, &home.join("column"))
             .await
             .map_err(text)?;
         Ok(Self { store, handle })
