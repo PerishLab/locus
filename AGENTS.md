@@ -238,7 +238,14 @@ and engine diagnostic handoff.
   time, producer and `locus.trace` as key columns sorted by trace, partitioned
   by producer and day. Its manifest lives in a Keel estate the server hosts at
   `<home>/estate.sqlite3`, bootstrapped on first start, with parts under
-  `<home>/column`. Producer and trace selections prune parts; any other role
+  `<home>/column`. The server explicitly adopts its original field-free column
+  declaration through `Store::adopt`: a nonempty root without `model.json`
+  must validate against that declaration before binding and recovery. An
+  existing binding must match exactly; invalid models, incompatible layouts
+  and malformed unbound history refuse without rewriting historical record
+  files. No nullable fields are added or inferred. Old writers do not enforce
+  bindings, so rollback across adoption requires a compatibility review.
+  Producer and trace selections prune parts; any other role
   is selected exactly by reading each candidate. A JSONL `store` directory
   left by an earlier server is migrated at startup, one day at a time, and a
   day file is removed only after it reads back byte for byte.

@@ -14,6 +14,8 @@ use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::runtime::Runtime;
 
+mod adopt;
+
 const DAY: u64 = 86_400_000_000_000;
 const BASE: u64 = 20_000 * DAY;
 const FAR: u64 = u64::MAX / 2;
