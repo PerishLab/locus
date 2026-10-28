@@ -1008,9 +1008,9 @@ dependencies = [
 
 [[package]]
 name = "keel"
-version = "0.27.0"
+version = "0.28.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "fd10c547f8238938b39c69b027317639ba9ef5d38758819e2148cecf44a59ff7"
+checksum = "a5628fc96dfe299db7609482be43f82f553793f23fa46a68628fe167b345725f"
 dependencies = [
  "axum",
  "getrandom 0.3.4",
@@ -1025,9 +1025,9 @@ dependencies = [
 
 [[package]]
 name = "keel-column"
-version = "0.27.0"
+version = "0.28.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "49f1f489cc144e526924c122d611ea889a1e6d3eff07d4113c31bf0e501b25ab"
+checksum = "ddbe7f3f4bc4368480524be0464631d155183d6d907419773433183daa49a1ff"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -1043,9 +1043,9 @@ dependencies = [
 
 [[package]]
 name = "keel-macro"
-version = "0.27.0"
+version = "0.28.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "c3ffe5efc3aa7fa76a6802858d1251b7a23c6a4cfc4abc3b8223b9f2f10f74dc"
+checksum = "a7af2883b82bb82aba28244481503efeb6976abc383121b30ca788045458eb20"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1365,9 +1365,9 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "plumb"
-version = "0.111.0"
+version = "0.112.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "584a556dfd00d1dca0adbbbfe86becbbd5540326f620f359b0ec30c9031c1660"
+checksum = "162e4675a03086513da468c3e7fe033efbfb7ec609b4b6172c4c5697975366dc"
 dependencies = [
  "base64 0.22.1",
  "clap",
@@ -1376,6 +1376,7 @@ dependencies = [
  "object",
  "pin-project-lite",
  "plumb-macro",
+ "radicula-lock",
  "semver",
  "serde",
  "serde_json",
@@ -1390,9 +1391,9 @@ dependencies = [
 
 [[package]]
 name = "plumb-macro"
-version = "0.111.0"
+version = "0.112.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "8860b9beb1c40d8c8856d565eb310025a99bb41345b9bcf1b728c89408694aa2"
+checksum = "1bd61483c287d1bc5a4f79c33e4a305805878af033fd74bf95b517b24434f0b4"
 dependencies = [
  "proc-macro2",
  "quote",
