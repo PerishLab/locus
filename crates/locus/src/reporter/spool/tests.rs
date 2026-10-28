@@ -1,5 +1,6 @@
 use super::{Report, Spool, claim, open, segments};
 use crate::Atom;
+use radicula_lock::Mode;
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 use std::fs;
@@ -252,10 +253,10 @@ fn aging() {
     let lock = super::Root(directory.clone())
         .open("spool.lock", false)
         .expect("lock");
-    lock.lock().expect("hold writer");
+    radicula_lock::lock(&lock, Mode::Exclusive).expect("hold writer");
     super::seal::expired(&directory, future).expect("busy writer");
     assert!(segments(&directory).expect("segments").is_empty());
-    lock.unlock().expect("release writer");
+    radicula_lock::unlock(&lock).expect("release writer");
     super::seal::expired(&directory, future).expect("aged");
     assert!(!directory.join("active.jsonl").exists());
     assert_eq!(

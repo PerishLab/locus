@@ -1,5 +1,6 @@
 use super::Report;
 use crate::{Atom, Error};
+use radicula_lock::Mode;
 use serde_json::json;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
@@ -95,12 +96,11 @@ impl Report for Spool {
             .lock
             .lock()
             .map_err(|_| "spool lock is poisoned".to_string())?;
-        lock.lock()
+        radicula_lock::lock(&lock, Mode::Exclusive)
             .map_err(|error| format!("cannot lock spool: {error}"))?;
         let appended = self.append(&lock, &record);
-        let unlocked = lock
-            .unlock()
-            .map_err(|error| format!("cannot unlock spool: {error}"));
+        let unlocked =
+            radicula_lock::unlock(&lock).map_err(|error| format!("cannot unlock spool: {error}"));
         appended.and_then(|loss| unlocked.map(|_| loss))
     }
 }

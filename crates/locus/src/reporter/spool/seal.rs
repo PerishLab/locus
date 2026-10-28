@@ -1,5 +1,6 @@
 use super::{ACTIVE, AGE, LOCK, Root, count, counted};
-use std::fs::{self, File, Metadata, TryLockError};
+use radicula_lock::{Mode, TryLockError};
+use std::fs::{self, File, Metadata};
 use std::io;
 use std::path::Path;
 use std::time::SystemTime;
@@ -10,13 +11,13 @@ pub(super) fn expired(directory: &Path, now: SystemTime) -> io::Result<()> {
     }
     let root = Root(directory.to_path_buf());
     let lock = root.open(LOCK, false).map_err(io::Error::other)?;
-    match lock.try_lock() {
+    match radicula_lock::attempt(&lock, Mode::Exclusive) {
         Ok(()) => (),
         Err(TryLockError::WouldBlock) => return Ok(()),
         Err(TryLockError::Error(error)) => return Err(error),
     }
     let result = rotate(&root, &lock, now);
-    let released = lock.unlock();
+    let released = radicula_lock::unlock(&lock);
     result.and(released)
 }
 
