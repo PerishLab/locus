@@ -1008,9 +1008,9 @@ dependencies = [
 
 [[package]]
 name = "keel"
-version = "0.28.0"
+version = "0.28.1"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "a5628fc96dfe299db7609482be43f82f553793f23fa46a68628fe167b345725f"
+checksum = "aa6242a2cc145862bfc798b0ab82e46a67bc92089818e1998f44236578458988"
 dependencies = [
  "axum",
  "getrandom 0.3.4",
@@ -1025,9 +1025,9 @@ dependencies = [
 
 [[package]]
 name = "keel-column"
-version = "0.28.0"
+version = "0.28.1"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "ddbe7f3f4bc4368480524be0464631d155183d6d907419773433183daa49a1ff"
+checksum = "fbbebc262fb242cac0075e6f8727a8fcfe8b9a2fcc2c422829f479b2891ea158"
 dependencies = [
  "arrow-array",
  "arrow-schema",
@@ -1035,6 +1035,7 @@ dependencies = [
  "crc32fast",
  "keel",
  "parquet",
+ "radicula-lock",
  "serde",
  "serde_json",
  "tempfile",
@@ -1043,9 +1044,9 @@ dependencies = [
 
 [[package]]
 name = "keel-macro"
-version = "0.28.0"
+version = "0.28.1"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "a7af2883b82bb82aba28244481503efeb6976abc383121b30ca788045458eb20"
+checksum = "c5801b7e3241762e2b19bcdedbfc1967e52c57f4c144f14272efd31f19d818ae"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1366,9 +1367,9 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "plumb"
-version = "0.112.0"
+version = "0.113.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "162e4675a03086513da468c3e7fe033efbfb7ec609b4b6172c4c5697975366dc"
+checksum = "ac33c519dfa85a068e3dc9145ca78b1f4cd8f9718dbe14fbfa4eb7faa6fbb326"
 dependencies = [
  "base64 0.22.1",
  "clap",
@@ -1392,9 +1393,9 @@ dependencies = [
 
 [[package]]
 name = "plumb-macro"
-version = "0.112.0"
+version = "0.113.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "1bd61483c287d1bc5a4f79c33e4a305805878af033fd74bf95b517b24434f0b4"
+checksum = "a42df65f8af4dbe52162dd7cb9c7c80facdeaf8810880a7432013805994f381f"
 dependencies = [
  "proc-macro2",
  "quote",
