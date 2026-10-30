@@ -1,6 +1,6 @@
 use super::Report;
 use crate::{Atom, Error};
-use radicula_lock::Mode;
+use radicula_lock::{Factory, Failure, Policy};
 use serde_json::json;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
@@ -18,6 +18,8 @@ const LOCK: &str = "spool.lock";
 const SEALED: &str = "sealed-";
 const CLAIMED: &str = "claimed-";
 const SUFFIX: &str = ".jsonl";
+
+type Reported = Result<Option<String>, String>;
 
 pub fn segments(directory: &Path) -> io::Result<Vec<PathBuf>> {
     listed(directory, SEALED)
@@ -70,6 +72,8 @@ pub(super) fn open(directory: &str, ceiling: u64, segment: u64) -> Result<Spool,
     root.create()
         .map_err(|error| Error::reporter(format!("cannot create spool {directory}: {error}")))?;
     let lock = root.open(LOCK, false).map_err(Error::reporter)?;
+    let lock = Factory::file(lock, Policy::EXCLUSIVE)
+        .map_err(|error| Error::reporter(format!("cannot bind spool lock: {error}")))?;
     Ok(Spool {
         root,
         ceiling,
@@ -84,7 +88,7 @@ pub(super) struct Spool {
     ceiling: u64,
     segment: u64,
     age: Option<Duration>,
-    lock: Mutex<File>,
+    lock: Mutex<radicula_lock::file::Gate>,
 }
 
 impl Report for Spool {
@@ -92,20 +96,19 @@ impl Report for Spool {
         let mut record =
             serde_json::to_vec(atom).map_err(|error| format!("cannot encode Atom: {error}"))?;
         record.push(b'\n');
-        let lock = self
-            .lock
-            .lock()
-            .map_err(|_| "spool lock is poisoned".to_string())?;
-        radicula_lock::lock(&lock, Mode::Exclusive)
-            .map_err(|error| format!("cannot lock spool: {error}"))?;
-        let appended = self.append(&lock, &record);
-        let unlocked =
-            radicula_lock::unlock(&lock).map_err(|error| format!("cannot unlock spool: {error}"));
-        appended.and_then(|loss| unlocked.map(|_| loss))
+        self.with(|lock| self.append(lock, &record))
     }
 }
 
 impl Spool {
+    fn with(&self, action: impl FnOnce(&File) -> Reported) -> Reported {
+        let gate = self
+            .lock
+            .lock()
+            .map_err(|_| "spool lock is poisoned".to_string())?;
+        gate.guard(|| action(gate.file())).map_err(failure)?
+    }
+
     pub(super) fn aged(mut self, age: Duration) -> Self {
         self.age = Some(age);
         self
@@ -179,6 +182,19 @@ impl Spool {
             )
         });
         Ok((loss, sealed))
+    }
+}
+
+fn failure(failure: Failure<Reported>) -> String {
+    match failure {
+        Failure::Admission(error) => format!("cannot lock spool: {error}"),
+        Failure::Release { output, error } => {
+            let detail = match output {
+                Ok(Some(detail)) | Err(detail) => format!("{detail}; "),
+                Ok(None) => String::new(),
+            };
+            format!("{detail}cannot unlock spool: {error}")
+        }
     }
 }
 

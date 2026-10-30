@@ -63,7 +63,12 @@ and engine diagnostic handoff.
 - The `api` reporter is the only reporter. Its buffer hands Atoms off through
   `active.jsonl` and immutable, time-ordered `sealed-*` segments, with one
   contract on every platform a product ships to. Writers serialize on `spool.lock`, a file never renamed,
-  and open `active.jsonl` only for one append, so no writer holds a segment
+  through a persistent Radicula existing-file Gate inside the data mutex. The
+  mutex retains the spool's poison refusal; Radicula releases admission on
+  business errors and unwinding over that same original counter handle. Failed
+  release retains any append/loss diagnostic and refuses later admission on
+  the binding. A lock release is not content rollback. Writers
+  open `active.jsonl` only for one append, so no writer holds a segment
   that may be sealed and no file identity is needed. The sealed and claimed
   byte total lives in that lock file as an upper bound; a missing or stale
   total is recounted from the directory. Writers never lock a sealed or
