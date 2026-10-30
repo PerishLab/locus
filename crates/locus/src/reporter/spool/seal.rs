@@ -1,5 +1,5 @@
 use super::{ACTIVE, AGE, LOCK, Root, count, counted};
-use radicula_lock::{Mode, TryLockError};
+use radicula_lock::{Error, Factory, Failure, Policy, Wait};
 use std::fs::{self, File, Metadata};
 use std::io;
 use std::path::Path;
@@ -11,14 +11,20 @@ pub(super) fn expired(directory: &Path, now: SystemTime) -> io::Result<()> {
     }
     let root = Root(directory.to_path_buf());
     let lock = root.open(LOCK, false).map_err(io::Error::other)?;
-    match radicula_lock::attempt(&lock, Mode::Exclusive) {
-        Ok(()) => (),
-        Err(TryLockError::WouldBlock) => return Ok(()),
-        Err(TryLockError::Error(error)) => return Err(error),
+    let gate = Factory::file(lock, Policy::EXCLUSIVE).map_err(io::Error::other)?;
+    match gate.with(Wait::immediate(), || rotate(&root, gate.file(), now)) {
+        Ok(output) => output,
+        Err(Failure::Admission(Error::Busy)) => Ok(()),
+        Err(Failure::Admission(Error::Io(error))) => Err(io::Error::new(error.kind(), error)),
+        Err(Failure::Admission(error)) => Err(io::Error::other(error)),
+        Err(Failure::Release { output, error }) => {
+            let message = format!("cannot unlock spool: {error}");
+            Err(match output {
+                Ok(()) => io::Error::other(message),
+                Err(business) => io::Error::new(business.kind(), format!("{business}; {message}")),
+            })
+        }
     }
-    let result = rotate(&root, &lock, now);
-    let released = radicula_lock::unlock(&lock);
-    result.and(released)
 }
 
 fn metadata(directory: &Path) -> io::Result<Option<Metadata>> {

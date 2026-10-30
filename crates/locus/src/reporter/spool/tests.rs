@@ -1,3 +1,6 @@
+#[path = "tests/scope.rs"]
+mod scope;
+
 use super::{Report, Spool, claim, open, segments};
 use crate::Atom;
 use radicula_lock::Mode;
