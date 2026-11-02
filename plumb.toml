@@ -25,6 +25,11 @@ note = "Rust workspace anchors."
 [identity]
 ns = "locus"
 
+[guard.lock]
+enforce = true
+target = "x86_64-unknown-linux-gnu"
+features = ["default", "all-features"]
+
 [release]
 authority = "https://releases.locus.perish.uk"
 binaries = ["locus-api"]

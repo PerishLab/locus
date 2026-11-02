@@ -38,3 +38,7 @@ include = [
 
 [word]
 single = true
+
+[[ban]]
+syntax = "lock"
+paths = ["crates/**/*.rs"]
