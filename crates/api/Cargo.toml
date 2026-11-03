@@ -12,6 +12,7 @@ name = "locus-api"
 path = "src/entry/main.rs"
 
 [dependencies]
+radicula-config = { workspace = true }
 axum = { workspace = true }
 clap = { workspace = true }
 keel = { workspace = true }

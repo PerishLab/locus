@@ -9,6 +9,7 @@ license = "MIT"
 repository = "https://github.com/PerishLab/locus"
 
 [workspace.dependencies]
+radicula-config = { version = "0", registry = "perish" }
 axum = "0.8"
 clap = { version = "4", features = ["derive", "env"] }
 getrandom = "0.3"

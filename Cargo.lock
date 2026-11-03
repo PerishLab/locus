@@ -1132,6 +1132,7 @@ dependencies = [
  "locus 0.15.2",
  "plumb",
  "pollster",
+ "radicula-config",
  "serde",
  "serde_json",
  "sha2",
