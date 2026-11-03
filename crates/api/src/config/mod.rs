@@ -40,5 +40,5 @@ pub(crate) fn read(home: &Path) -> Result<Declared, String> {
     if !path.is_file() {
         return Ok(Declared::default());
     }
-    plumb::config::load(&path).map_err(|error| error.to_string())
+    radicula_config::load(&path).map_err(|error| error.to_string())
 }

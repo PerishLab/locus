@@ -76,14 +76,14 @@ fn isolate<T>(built: Result<Option<T>, String>) -> Option<T> {
 
 fn settings(home: &std::path::Path) -> Result<Option<Settings>, String> {
     let path = home.join("config.toml");
-    let file: File = match plumb::config::load(&path) {
+    let file: File = match radicula_config::load(&path) {
         Ok(file) => file,
-        Err(plumb::config::Error::Read { source, .. })
+        Err(radicula_config::Error::Read { source, .. })
             if source.kind() == std::io::ErrorKind::NotFound =>
         {
             return Ok(None);
         }
-        Err(plumb::config::Error::Parse { path, .. }) => {
+        Err(radicula_config::Error::Parse { path, .. }) => {
             return Err(format!(
                 "invalid observation configuration in {}; check [locus] settings",
                 path.display()
