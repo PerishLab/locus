@@ -399,7 +399,8 @@ Prepare hook configuration in an isolated CODEX_HOME, explicitly enable/trust
 the hook, and compare its records with local session evidence before wider
 activation. Global installation is a separate operational act.
 
-The completed invocation emits one `locus.adapter.attempt/v1` outcome on stderr,
+The completed invocation emits one outcome on stderr (v1 hook-only, or a v2
+paired envelope containing the hook and command v1 outcomes),
 including a local attempt identity, available receive time and validated correlation,
 rejection stage or Engine acceptance with buffer written/failed/unknown, any observed
 Atom identity, and bounded issues. This is separate from the host-safe exit and
@@ -447,3 +448,27 @@ owns this adapter boundary and its source/stable/installed qualification.
   stamped.
 - Never publish a crate by hand. A crate published outside wharf leaves no
   distribution record.
+
+## Codex command observations
+
+Bash PreToolUse additionally projects at most one source-less command tuple,
+with `codex.record=command.v1`, the original session/turn/tool roles, and finite
+command, coverage and wrapper roles. The tuple is ordered as explicit override
+markers, wrapper, program and operation. It observes bounded submitted syntax,
+not effective argv, process startup, success or business progress. Programs,
+operations and the one public environment value are allowlisted; no arbitrary
+argv/env names, values, paths, profile names, hashes or model metadata enter
+this tuple. Missing, opaque or over-budget syntax retains unknown coverage.
+Select `codex.command=known.v1` before using existing prefix/bytes mappings;
+unknown/opaque repetition is not known command repetition. Command records
+carry neither a fabricated trace/span nor hook source metadata. Hook records
+retain their original payload and add `codex.record=hook.v1`.
+
+A paired v2 diagnostic is still one complete stderr JSON line. Its hook and
+command outcomes have distinct attempt/Atom identities; either acceptance or
+buffer handoff can fail independently. `quality codex` retains hook counts at
+the root and reconciles command Atoms/outcomes separately under `commands`;
+command records never inflate tool before/after counts. Old v1 diagnostics and
+old unmarked hook Atoms remain supported; older readers must refuse v2 rather
+than claim complete capture. [CLI examples](crates/cli/README.md) describe
+selection, grouping, evidence lookup, limits and the scope of these observations.

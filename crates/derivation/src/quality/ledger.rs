@@ -78,7 +78,7 @@ impl Quality {
             self.rounds.insert((fact.group.clone(), round.clone()));
         }
         *self.events.entry(fact.event.clone()).or_default() += 1;
-        if fact.side == Some(super::Side::Before) {
+        if fact.side == Some(super::Side::Before) || fact.event == "CommandShape" {
             *self
                 .classes
                 .entry(fact.class.clone().unwrap_or("unavailable".into()))

@@ -2,6 +2,7 @@ use serde_json::{Map, Value, json};
 use std::path::Path;
 
 mod shell;
+pub(super) use shell::words;
 #[cfg(test)]
 mod tests;
 
@@ -70,7 +71,7 @@ fn references(response: &Value, fields: &mut Map<String, Value>) {
     }
 }
 
-fn operation(words: &[String]) -> Option<&'static str> {
+pub(super) fn operation(words: &[String]) -> Option<&'static str> {
     let words = match words {
         [program, seat, rest @ ..] if name(program) == "runseal" && seat.starts_with(':') => rest,
         rest => rest,

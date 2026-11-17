@@ -46,6 +46,7 @@ pub(super) fn diagnostics(
     path: Option<&Path>,
     excluded: &BTreeSet<String>,
     quality: &mut Quality,
+    commands: &mut Quality,
 ) -> Result<u64, String> {
     let Some(path) = path else {
         return Ok(0);
@@ -72,15 +73,20 @@ pub(super) fn diagnostics(
             legacy += 1;
             continue;
         }
-        let attempt: Attempt = serde_json::from_slice(line)
+        let value: serde_json::Value = serde_json::from_slice(line)
             .map_err(|_| format!("invalid structured diagnostic record {}", index + 1))?;
-        attempt.validate()?;
-        if attempt
-            .group
-            .as_ref()
-            .is_none_or(|group| !excluded.contains(group))
+        if value.get("schema").and_then(serde_json::Value::as_str)
+            == Some("locus.adapter.attempt/v2")
         {
-            quality.attempt(attempt)?;
+            let batch: Batch =
+                serde_json::from_value(value).map_err(|_| "invalid paired outcome")?;
+            batch.validate()?;
+            observe(batch.hook, excluded, quality)?;
+            observe(batch.command, excluded, commands)?;
+        } else {
+            let attempt: Attempt =
+                serde_json::from_value(value).map_err(|_| "invalid adapter outcome")?;
+            observe(attempt, excluded, quality)?;
         }
     }
     Ok(legacy)
@@ -96,4 +102,60 @@ fn old(line: &[u8]) -> bool {
                     .iter()
                     .all(|b| b.is_ascii_alphanumeric() || b"._-".contains(b))
         })
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Batch {
+    schema: String,
+    hook: Attempt,
+    command: Attempt,
+}
+
+fn observe(
+    attempt: Attempt,
+    excluded: &BTreeSet<String>,
+    quality: &mut Quality,
+) -> Result<(), String> {
+    attempt.validate()?;
+    if attempt
+        .group
+        .as_ref()
+        .is_none_or(|group| !excluded.contains(group))
+    {
+        quality.attempt(attempt)?;
+    }
+    Ok(())
+}
+
+impl Batch {
+    fn validate(&self) -> Result<(), String> {
+        if self.schema != "locus.adapter.attempt/v2"
+            || self.hook.event.as_deref() != Some("PreToolUse")
+            || self.command.event.as_deref() != Some("CommandShape")
+        {
+            return Err("invalid paired event contract".into());
+        }
+        if self.hook.group.is_none()
+            || self.hook.group != self.command.group
+            || self
+                .hook
+                .id
+                .as_ref()
+                .zip(self.command.id.as_ref())
+                .is_some_and(|(hook, command)| hook == command)
+        {
+            return Err("inconsistent paired identity".into());
+        }
+        if self
+            .hook
+            .atom
+            .as_ref()
+            .zip(self.command.atom.as_ref())
+            .is_some_and(|(hook, command)| hook == command)
+        {
+            return Err("paired outcomes reuse an Atom identity".into());
+        }
+        Ok(())
+    }
 }

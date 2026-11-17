@@ -101,7 +101,12 @@ fn collect(
         .reporter(locus::reporter::Spec::api(endpoint, buffer));
     let engine = Engine::bootstrap(Config::new(policy).hook(observer))
         .map_err(|_| Fault::from("engine.bootstrap").issue(Stage::Bootstrap))?;
-    let mut candidate = Candidate::event(event.fields.clone().into());
+    let mut candidate = Candidate::event(
+        event
+            .payload
+            .clone()
+            .unwrap_or_else(|| event.fields.clone().into()),
+    );
     candidate = bind(candidate, "codex.session", &event.session)?;
     for (field, role) in [
         ("turn_id", "codex.turn"),
@@ -111,6 +116,9 @@ fn collect(
         if let Some(value) = event.fields.get(field).and_then(serde_json::Value::as_str) {
             candidate = bind(candidate, role, value)?;
         }
+    }
+    for (role, key) in event.roles {
+        candidate = bind(candidate, role, key)?;
     }
     engine
         .append(&Context::empty(), candidate)

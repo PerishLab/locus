@@ -6,6 +6,8 @@ mod wire;
 pub(super) struct Event {
     pub session: String,
     pub fields: Map<String, Value>,
+    pub payload: Option<Value>,
+    pub roles: Vec<(&'static str, &'static str)>,
 }
 
 pub(super) fn normalize(bytes: &[u8]) -> Result<Event, Fault> {
@@ -42,6 +44,8 @@ pub(super) fn normalize(bytes: &[u8]) -> Result<Event, Fault> {
     Ok(Event {
         session: envelope.session.0,
         fields,
+        payload: None,
+        roles: vec![("codex.record", "hook.v1")],
     })
 }
 
