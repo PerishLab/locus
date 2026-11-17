@@ -17,7 +17,12 @@ fn lifecycle() {
     ] {
         let mut event = event;
         event["session_id"] = json!("parent");
-        event["turn_id"] = json!("turn");
+        if !matches!(
+            event["hook_event_name"].as_str(),
+            Some("SessionStart" | "SessionEnd")
+        ) {
+            event["turn_id"] = json!("turn");
+        }
         invoke(root.path(), event.to_string().as_bytes());
     }
     let records = records(root.path());
@@ -34,6 +39,40 @@ fn lifecycle() {
             .iter()
             .all(|atom| !atom.to_string().contains("private-"))
     );
+}
+
+#[test]
+fn closing() {
+    let root = tempfile::tempdir().unwrap();
+    let input = json!({"session_id":"session", "hook_event_name":"SessionEnd",
+        "reason":"other", "turn_id":"untrusted-extension", "prompt":"private-prompt"});
+    invoke(root.path(), input.to_string().as_bytes());
+    let atoms = records(root.path());
+    assert_eq!(atoms.len(), 1);
+    assert_eq!(atoms[0]["payload"]["event"], "SessionEnd");
+    assert_eq!(atoms[0]["context"]["codex.session"], "session");
+    assert!(atoms[0]["context"].get("codex.turn").is_none());
+    assert!(atoms[0]["payload"].get("turn_id").is_none());
+    assert!(!atoms[0].to_string().contains("private-prompt"));
+}
+
+#[test]
+fn malformed() {
+    for input in [
+        json!({"session_id":"session", "hook_event_name":"SessionEnd"}),
+        json!({"session_id":"session", "hook_event_name":"SessionEnd", "reason":null}),
+        json!({"session_id":"session", "hook_event_name":"SessionEnd", "reason":3}),
+        json!({"session_id":"session", "hook_event_name":"SessionEnd", "reason":""}),
+        json!({"session_id":"session", "hook_event_name":"SessionEnd", "reason":"private\nreason"}),
+        json!({"session_id":"", "hook_event_name":"SessionEnd", "reason":"other"}),
+    ] {
+        let root = tempfile::tempdir().unwrap();
+        let buffer = root.path().join("buffer");
+        let output = invoke(&buffer, input.to_string().as_bytes());
+        assert!(!buffer.exists());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("field.invalid"));
+        assert!(!String::from_utf8_lossy(&output.stderr).contains("private"));
+    }
 }
 
 #[test]

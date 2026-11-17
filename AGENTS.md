@@ -372,7 +372,11 @@ PostToolUse, PermissionRequest, PreCompact/PostCompact, SubagentStart/Stop,
 Stop and Interrupt. Model-request events are explicitly unsupported. Payloads
 carry `locus.adapter.codex/v1`, the supported contract, original event name,
 selected IDs and bounded metadata; session/turn/tool/agent keys are explicit
-context roles. The hook envelope does not identify its emitter version; `supported_contract`
+context roles. Private event types express the fields needed for that projection,
+not full validation of discarded source bodies. SessionStart and SessionEnd
+carry session identity without a turn; an extra turn field on those events is
+discarded rather than used to invent a turn association. Independent upstream
+contract fixtures retain each event's actual field presence. The hook envelope does not identify its emitter version; `supported_contract`
 names the parsing profile and `source_version` remains `unavailable`, never a
 verified client version. No native source-event ID is promised: repeated deliveries
 remain separate accepted Atoms and correlation is not deduplication. No fake

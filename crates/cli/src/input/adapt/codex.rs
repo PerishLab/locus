@@ -1,5 +1,7 @@
 use serde_json::{Map, Value, json};
 
+mod wire;
+
 pub(super) struct Event {
     pub session: String,
     pub fields: Map<String, Value>,
@@ -7,48 +9,23 @@ pub(super) struct Event {
 
 pub(super) fn normalize(bytes: &[u8]) -> Result<Event, &'static str> {
     let input: Value = serde_json::from_slice(bytes).map_err(|_| "input.json")?;
-    let session = text(&input, "session_id")?.to_string();
     let name = text(&input, "hook_event_name")?;
-    let mut fields = Map::new();
+    if matches!(name, "PreModelRequest" | "PostModelRequest") {
+        return Err("event.unsupported");
+    }
+    let envelope: wire::Envelope =
+        serde_json::from_value(input.clone()).map_err(|_| "field.invalid")?;
+    if matches!(envelope.event, wire::Event::Unknown) {
+        return Err("event.unknown");
+    }
+    let shell = envelope.event.shell();
+    let mut fields = envelope.event.fields()?;
     fields.insert("schema".into(), json!("locus.adapter.codex/v1"));
     fields.insert("supported_contract".into(), json!("codex.hooks/0.169"));
     fields.insert("source_version".into(), json!("unavailable"));
-    fields.insert("event".into(), json!(name));
     fields.insert("source_identity".into(), json!("correlation-only"));
-    match name {
-        "SessionStart" => copy(&input, &mut fields, "source")?,
-        "SessionEnd" => {
-            copy(&input, &mut fields, "reason")?;
-            copy(&input, &mut fields, "turn_id")?;
-        }
-        "PreToolUse" | "PostToolUse" => {
-            copy(&input, &mut fields, "turn_id")?;
-            copy(&input, &mut fields, "tool_use_id")?;
-            copy(&input, &mut fields, "tool_name")?;
-            super::tool::observe(&input, &mut fields);
-        }
-        "PermissionRequest" => {
-            copy(&input, &mut fields, "turn_id")?;
-            copy(&input, &mut fields, "tool_name")?;
-            optional(&input, &mut fields, "tool_use_id")?;
-            super::tool::observe(&input, &mut fields);
-        }
-        "SubagentStart" | "SubagentStop" => {
-            copy(&input, &mut fields, "turn_id")?;
-            copy(&input, &mut fields, "agent_id")?;
-            copy(&input, &mut fields, "agent_type")?;
-        }
-        "UserPromptSubmit" | "Stop" | "Interrupt" => {
-            copy(&input, &mut fields, "turn_id")?;
-        }
-        "PreCompact" | "PostCompact" => {
-            copy(&input, &mut fields, "trigger")?;
-            copy(&input, &mut fields, "turn_id")?;
-        }
-        "PreModelRequest" | "PostModelRequest" => {
-            return Err("event.unsupported");
-        }
-        _ => return Err("event.unknown"),
+    if shell {
+        super::tool::observe(&input, &mut fields);
     }
     optional(&input, &mut fields, "model")?;
     optional(&input, &mut fields, "agent_id")?;
@@ -58,7 +35,10 @@ pub(super) fn normalize(bytes: &[u8]) -> Result<Event, &'static str> {
         }
         fields.insert("stop_hook_active".into(), value.clone());
     }
-    Ok(Event { session, fields })
+    Ok(Event {
+        session: envelope.session.0,
+        fields,
+    })
 }
 
 fn text<'a>(input: &'a Value, key: &str) -> Result<&'a str, &'static str> {
