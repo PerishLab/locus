@@ -1,7 +1,7 @@
 use sha2::{Digest, Sha256};
 use std::process::Command;
 
-const HELP: &str = "cdf2c5179249b1ec4be30dfe014da03563d926784cf086dc5a16838b27721039";
+const HELP: &str = "dfea9f7885d7893651b658efbbfa5d821e123ad4e67c8bd5d106ecad544b0791";
 
 #[test]
 fn help() {
@@ -14,6 +14,8 @@ fn help() {
         vec!["tree", "--help"],
         vec!["adapt", "--help"],
         vec!["adapt", "codex", "--help"],
+        vec!["quality", "--help"],
+        vec!["quality", "codex", "--help"],
     ]
     .iter()
     .map(|args| {

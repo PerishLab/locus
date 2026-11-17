@@ -1,4 +1,5 @@
 mod config;
+pub mod evidence;
 mod mapping;
 mod model;
 

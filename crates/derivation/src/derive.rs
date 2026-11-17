@@ -1,11 +1,13 @@
 mod link;
 mod reach;
+mod report;
+pub mod span;
+pub use report::{Orphan, Tangle};
 
 pub use link::Links;
 
 use locus::{Atom, Edge, Role};
-use serde::Serialize;
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 pub const SCHEMA: &str = "locus.span/v1";
 
@@ -234,67 +236,4 @@ fn covered(intervals: &[Interval], index: usize, mut ranges: Vec<(u64, u64)>) ->
         }
     }
     covered
-}
-
-#[derive(Serialize)]
-pub struct Orphan {
-    schema: &'static str,
-    kind: &'static str,
-    declaration: String,
-    file: String,
-    trace: String,
-    span: String,
-    at: u64,
-}
-
-impl Orphan {
-    fn unclosed(frame: Frame) -> Self {
-        Self::name("unclosed", frame)
-    }
-
-    fn headless(frame: Frame) -> Self {
-        Self::name("headless", frame)
-    }
-
-    fn name(kind: &'static str, frame: Frame) -> Self {
-        Self {
-            schema: SCHEMA,
-            kind,
-            declaration: frame.declaration,
-            file: frame.file,
-            trace: frame.trace,
-            span: frame.span,
-            at: frame.at,
-        }
-    }
-}
-
-#[derive(Serialize)]
-pub struct Tangle {
-    schema: &'static str,
-    kind: &'static str,
-    trace: String,
-    at: u64,
-    until: u64,
-    pub spans: u64,
-    declarations: BTreeSet<String>,
-}
-
-impl Tangle {
-    fn open(trace: &str, reach: &reach::Reach) -> Self {
-        Self {
-            schema: SCHEMA,
-            kind: "tangled",
-            trace: trace.to_string(),
-            at: reach.at,
-            until: reach.until,
-            spans: 0,
-            declarations: BTreeSet::new(),
-        }
-    }
-
-    fn mark(&mut self, declaration: &str) {
-        self.spans += 1;
-        self.declarations.insert(declaration.to_string());
-    }
 }

@@ -390,14 +390,33 @@ discarded. Business delegation and completion still need native receipts and
 artifact evidence. A background process initial return is not terminal.
 
 The adapter emits only `{}` and exits zero, including invalid adapter arguments,
-unknown events and collection errors; bounded diagnostic codes go to stderr.
+unknown events and collection errors; a bounded structured attempt outcome goes to stderr.
 It never returns hook decisions or additional context. Help remains ordinary
 help output. Top-level CLI parsing and executable launch failures are outside
 this adapter contract. Use the valid command as a synchronous command hook;
 async hook cancellation/ordering and host process loss remain unknowns.
 Prepare hook configuration in an isolated CODEX_HOME, explicitly enable/trust
 the hook, and compare its records with local session evidence before wider
-activation. Global installation is a separate operational act. Issue #277
+activation. Global installation is a separate operational act.
+
+The completed invocation emits one `locus.adapter.attempt/v1` outcome on stderr,
+including a local attempt identity, available receive time and validated correlation,
+rejection stage or Engine acceptance with buffer written/failed/unknown, any observed
+Atom identity, and bounded issues. This is separate from the host-safe exit and
+never enters its own Atom reporter. Buffer written means reporter handoff, not
+central persistence. Missing invocation, process loss or failed diagnostic output
+remain unknown. Classification carries its parsing profile and describes command
+shape rather than execution or business completion.
+
+`locus quality codex` reconciles an explicit receive-time window from the exact
+adapter producer's API slice with an optional explicit outcome log and caller-declared
+expected/excluded sessions. Pairing uses group, round and call; duplicates and
+unmatched observations remain explicit. Limits bound records and bytes. Legacy
+untimed diagnostics remain unscoped, missing inputs preserve unknowns, and API
+readback joins exact Atom identities without claiming an ingestion watermark.
+The expected scope is no ambient active-population discovery. Atom reads still
+come only from the API; the explicit auxiliary log is not a replacement Atom store.
+ Issue #277
 owns this adapter boundary and its source/stable/installed qualification.
 
 - Never commit directly on `main`.

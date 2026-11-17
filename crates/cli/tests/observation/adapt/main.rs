@@ -1,3 +1,6 @@
+#[path = "quality/main.rs"]
+mod quality;
+
 mod wire;
 
 use serde_json::{Value, json};
@@ -147,10 +150,10 @@ fn arguments() {
             .unwrap();
         assert_eq!(output.status.code(), Some(0));
         assert_eq!(output.stdout, b"{}\n");
-        assert_eq!(
-            String::from_utf8(output.stderr).unwrap(),
-            "locus adapter diagnostic [arguments.invalid]\n"
-        );
+        let outcome: Value = serde_json::from_slice(&output.stderr).unwrap();
+        assert_eq!(outcome["schema"], "locus.adapter.attempt/v1");
+        assert_eq!(outcome["issues"][0]["code"], "arguments.invalid");
+        assert_eq!(outcome["outcome"]["status"], "rejected");
     }
 }
 
