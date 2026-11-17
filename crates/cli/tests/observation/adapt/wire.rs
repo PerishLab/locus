@@ -87,3 +87,20 @@ fn protocol() {
     assert!(atoms[0]["payload"].get("santi_operation").is_none());
     assert_eq!(atoms[1]["payload"]["santi_operation"], "strand.send");
 }
+
+#[test]
+fn permission() {
+    let root = tempfile::tempdir().unwrap();
+    let event = json!({"session_id":"session", "turn_id":"turn", "agent_id":null,
+        "agent_type":null, "transcript_path":null, "cwd":"private-cwd",
+        "hook_event_name":"PermissionRequest", "model":"test", "permission_mode":"default",
+        "tool_name":"Bash", "tool_input":{"command":"santi health"}});
+    invoke(root.path(), event.to_string().as_bytes());
+    let atoms = records(root.path());
+    assert_eq!(atoms.len(), 1);
+    assert_eq!(atoms[0]["payload"]["event"], "PermissionRequest");
+    assert_eq!(atoms[0]["context"]["codex.turn"], "turn");
+    assert!(atoms[0]["context"].get("codex.tool").is_none());
+    assert!(atoms[0]["payload"].get("tool_use_id").is_none());
+    assert!(!atoms[0].to_string().contains("private-cwd"));
+}
