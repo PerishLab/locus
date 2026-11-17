@@ -1154,7 +1154,9 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "shlex",
  "signal-hook",
+ "tempfile",
  "tokio",
  "ureq",
 ]
@@ -1368,9 +1370,9 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "plumb"
-version = "0.148.1"
+version = "0.150.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "3778ce629bc0134f0c07783502118229c846b6954c55477a07ddb56a776ec8c9"
+checksum = "b6c6ae0c7018990ec4d5e96da592e8921c43aae20351ebd608c56dcce6b5e4fc"
 dependencies = [
  "base64 0.22.1",
  "clap",
@@ -1396,9 +1398,9 @@ dependencies = [
 
 [[package]]
 name = "plumb-macro"
-version = "0.148.1"
+version = "0.150.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "c8aa4a75017a39081da9ecf6ce81880325f17430b59e0033a05b8bc83ba441ad"
+checksum = "6cf245af260ebb0dd225929cf43f575d83fb1de21298fd80785fa02cde0e904e"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1462,9 +1464,9 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "radicula-config"
-version = "0.13.0"
+version = "0.15.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "31c56abfc87fd405e9c46c566d6bcb396c5612448120229e85d3c5539dcc23a3"
+checksum = "22824d4528cc02795a316a1125455dd4180bfba435d9bf507274a5e169a8f94d"
 dependencies = [
  "radicula-config-macros",
  "serde",
@@ -1473,9 +1475,9 @@ dependencies = [
 
 [[package]]
 name = "radicula-config-macros"
-version = "0.13.0"
+version = "0.15.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "0046123dfa70d73e37e5ac8103344a7a66bab899209d2b6a44169d71a3b16082"
+checksum = "321ca8ebf5ef67a39029e236189622d824983d9464fab631214665f7d8a9b550"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -1500,9 +1502,9 @@ checksum = "640c5a3a4dea8d6a6894fc102a8efd6fee37b519b49d9b03c1464cfc54895acd"
 
 [[package]]
 name = "radicula-lock"
-version = "0.13.0"
+version = "0.15.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "fb2fdf57f475077d02cf297e4fa59ad43f288dade35c17e52fd9f81d150de546"
+checksum = "f540401cb51e72ca9ba1281a77a10278641712e93b46b09ce6b11c77e60ef944"
 
 [[package]]
 name = "radicula-process"

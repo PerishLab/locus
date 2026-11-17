@@ -27,6 +27,14 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     #[command(
+        about = "Adapt external observation protocols",
+        disable_help_flag = true
+    )]
+    Adapt {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    #[command(
         about = "Inspect one API read with span statistics and bounded finding evidence",
         after_help = "Emits inspect/span records, evidence groups and a final locus.analyze/v1 summary. A missing final summary means incomplete output. Exit 0: clean; 1: findings; 2: refused. Captured input is bounded, not an ingestion watermark."
     )]
@@ -75,6 +83,9 @@ fn main() -> ExitCode {
         return ExitCode::from(1);
     }
     let command = Cli::parse().command;
+    if let Command::Adapt { args } = command {
+        return input::adapt::run(args);
+    }
     signal::watch();
     let observer = observation::start(name(&command));
     let code = execute(command);
@@ -93,6 +104,7 @@ fn main() -> ExitCode {
 
 fn name(command: &Command) -> &'static str {
     match command {
+        Command::Adapt { .. } => "adapt",
         Command::Analyze { .. } => "analyze",
         Command::Inspect { .. } => "inspect",
         Command::Query { .. } => "query",
@@ -104,6 +116,7 @@ fn name(command: &Command) -> &'static str {
 #[locus::trace(with = plumb::observation::view())]
 fn execute(command: Command) -> ExitCode {
     match command {
+        Command::Adapt { args } => input::adapt::run(args),
         Command::Analyze {
             root,
             origin,

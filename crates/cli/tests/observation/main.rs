@@ -1,4 +1,7 @@
-#[path = "inspect/fixture.rs"]
+#[path = "adapt/main.rs"]
+mod adapt;
+
+#[path = "../inspect/fixture.rs"]
 mod fixture;
 
 use fixture::{Root, atom, stub};
