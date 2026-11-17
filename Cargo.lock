@@ -1110,12 +1110,12 @@ dependencies = [
 
 [[package]]
 name = "locus"
-version = "0.16.0"
+version = "0.17.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "b8adc037b1f6b3ce05593f4c2975a382e7e2d11c2252eafd12397c385906f2cd"
+checksum = "0844b5e4c5888c4ea68d888bfb28f142e8d912e5736da3b8dfcdd875cca71d01"
 dependencies = [
  "getrandom 0.3.4",
- "locus-macro 0.16.0",
+ "locus-macro 0.17.0",
  "radicula-lock",
  "serde",
  "serde_json",
@@ -1129,7 +1129,7 @@ dependencies = [
  "clap",
  "keel",
  "keel-column",
- "locus 0.16.0",
+ "locus 0.17.0",
  "plumb",
  "pollster",
  "radicula-config",
@@ -1147,7 +1147,7 @@ name = "locus-cli"
 version = "0.0.0"
 dependencies = [
  "clap",
- "locus 0.16.0",
+ "locus 0.17.0",
  "locus-api",
  "locus-derivation",
  "plumb",
@@ -1165,7 +1165,7 @@ dependencies = [
 name = "locus-derivation"
 version = "0.0.0"
 dependencies = [
- "locus 0.16.0",
+ "locus 0.17.0",
  "serde",
  "serde_json",
  "toml",
@@ -1182,9 +1182,9 @@ dependencies = [
 
 [[package]]
 name = "locus-macro"
-version = "0.16.0"
+version = "0.17.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "e8f43a27a46602b468b3e8aa17de5877c20523ec330ffbe763134ca392b70b64"
+checksum = "806c46c521abfdd99046ead6d1dad6aa14d1abb4b77ce977c9ce119dbb8db303"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1370,14 +1370,14 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "plumb"
-version = "0.150.0"
+version = "0.151.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "b6c6ae0c7018990ec4d5e96da592e8921c43aae20351ebd608c56dcce6b5e4fc"
+checksum = "c4cd40d0dc70e27d85774abebd990ad4ef720e2757d524d72ac9918b71172072"
 dependencies = [
  "base64 0.22.1",
  "clap",
  "dunce",
- "locus 0.16.0",
+ "locus 0.17.0",
  "object",
  "plumb-macro",
  "radicula-config",
@@ -1398,9 +1398,9 @@ dependencies = [
 
 [[package]]
 name = "plumb-macro"
-version = "0.150.0"
+version = "0.151.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "6cf245af260ebb0dd225929cf43f575d83fb1de21298fd80785fa02cde0e904e"
+checksum = "7d11e7e628079b1172b7d3c32d50e9cf88fd9eb92077d9d6bd77c605c01bccf1"
 dependencies = [
  "proc-macro2",
  "quote",
