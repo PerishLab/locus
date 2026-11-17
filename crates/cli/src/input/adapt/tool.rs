@@ -1,14 +1,22 @@
 use serde_json::{Map, Value, json};
 use std::path::Path;
 
+mod shell;
+#[cfg(test)]
+mod tests;
+
 pub(super) fn observe(input: &Value, fields: &mut Map<String, Value>) {
     if input.get("tool_name").and_then(Value::as_str) != Some("Bash") {
         fields.insert("classification_reason".into(), json!("not-shell"));
         return;
     }
     let command = input.pointer("/tool_input/command").and_then(Value::as_str);
-    let words = command.and_then(shlex::split);
-    let operation = words.as_deref().and_then(operation);
+    let words = command.map(shell::words).transpose();
+    let operation = words
+        .as_ref()
+        .ok()
+        .and_then(Option::as_deref)
+        .and_then(operation);
     fields.insert(
         "tool_class".into(),
         json!(if operation.is_some() {
@@ -23,8 +31,8 @@ pub(super) fn observe(input: &Value, fields: &mut Map<String, Value>) {
             "executable-and-operation"
         } else if command.is_none() {
             "command-unavailable"
-        } else if words.is_none() {
-            "shell-unparsed"
+        } else if let Err(reason) = words {
+            reason
         } else {
             "command-unresolved"
         }),
@@ -63,12 +71,6 @@ fn references(response: &Value, fields: &mut Map<String, Value>) {
 }
 
 fn operation(words: &[String]) -> Option<&'static str> {
-    if words
-        .iter()
-        .any(|word| matches!(word.as_str(), ";" | "&&" | "||" | "|"))
-    {
-        return None;
-    }
     let words = match words {
         [program, seat, rest @ ..] if name(program) == "runseal" && seat.starts_with(':') => rest,
         rest => rest,
