@@ -117,3 +117,72 @@ fn reporting() {
     assert!(result["atom"].is_string());
     assert_eq!(result["issues"][0]["code"], "reporter.failed");
 }
+
+#[test]
+fn concurrent() {
+    for accepted in [false, true] {
+        let event = if accepted {
+            "SessionStart"
+        } else {
+            "SessionEnd"
+        };
+        let status = if accepted { "accepted" } else { "rejected" };
+        let root = tempfile::tempdir().unwrap();
+        let log = root.path().join("outcomes.jsonl");
+        let output = std::fs::OpenOptions::new()
+            .create_new(true)
+            .append(true)
+            .open(&log)
+            .unwrap();
+        let mut children: Vec<_> = (0..32)
+            .map(|_| {
+                Command::new(env!("CARGO_BIN_EXE_locus"))
+                    .args([
+                        "adapt",
+                        "codex",
+                        "--endpoint",
+                        "http://127.0.0.1:0",
+                        "--buffer",
+                    ])
+                    .arg(root.path().join("buffer"))
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .stderr(output.try_clone().unwrap())
+                    .spawn()
+                    .unwrap()
+            })
+            .collect();
+        for (index, child) in children.iter_mut().enumerate() {
+            let input = json!({
+                "session_id": format!("session-{index}-{}", "x".repeat(400)),
+                "hook_event_name": event,
+                "source": "startup", "prompt": "private-concurrent-prompt"
+            });
+            child
+                .stdin
+                .take()
+                .unwrap()
+                .write_all(input.to_string().as_bytes())
+                .unwrap();
+        }
+        for child in children {
+            let output = child.wait_with_output().unwrap();
+            assert_eq!(output.status.code(), Some(0));
+            assert_eq!(output.stdout, b"{}\n");
+        }
+        let content = std::fs::read_to_string(log).unwrap();
+        assert!(content.ends_with('\n'));
+        assert!(!content.contains("private-concurrent-prompt"));
+        let records: Vec<Value> = content
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        assert_eq!(records.len(), 32);
+        let mut identities = std::collections::BTreeSet::new();
+        for record in records {
+            assert!(identities.insert(record["id"].as_str().unwrap().to_owned()));
+            assert_eq!(record["schema"], "locus.adapter.attempt/v1");
+            assert_eq!(record["outcome"]["status"], status);
+        }
+    }
+}
