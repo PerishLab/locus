@@ -12,7 +12,7 @@ struct Scan {
     escaped: bool,
 }
 
-pub(super) fn words(command: &str) -> Result<Vec<String>, &'static str> {
+pub(crate) fn words(command: &str) -> Result<Vec<String>, &'static str> {
     let mut scan = Scan::default();
     for character in command.chars() {
         scan.take(character)?;

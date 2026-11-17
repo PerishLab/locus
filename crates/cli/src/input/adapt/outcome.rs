@@ -102,8 +102,14 @@ pub(super) fn identify(attempt: &mut Attempt, bytes: &[u8]) {
         .map(str::to_owned);
 }
 
-pub(super) fn emit(attempt: &Attempt) {
-    let Ok(mut record) = serde_json::to_vec(attempt) else {
+pub(super) fn emit(attempt: &Attempt, command: Option<&Attempt>) {
+    let value = match command {
+        Some(command) => {
+            serde_json::json!({"schema":"locus.adapter.attempt/v2", "hook":attempt, "command":command})
+        }
+        None => serde_json::to_value(attempt).unwrap_or_default(),
+    };
+    let Ok(mut record) = serde_json::to_vec(&value) else {
         return;
     };
     record.push(b'\n');

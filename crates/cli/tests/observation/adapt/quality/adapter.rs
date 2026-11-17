@@ -120,12 +120,8 @@ fn reporting() {
 
 #[test]
 fn concurrent() {
-    for accepted in [false, true] {
-        let event = if accepted {
-            "SessionStart"
-        } else {
-            "SessionEnd"
-        };
+    for event in ["SessionEnd", "SessionStart", "PreToolUse"] {
+        let accepted = event != "SessionEnd";
         let status = if accepted { "accepted" } else { "rejected" };
         let root = tempfile::tempdir().unwrap();
         let log = root.path().join("outcomes.jsonl");
@@ -153,11 +149,7 @@ fn concurrent() {
             })
             .collect();
         for (index, child) in children.iter_mut().enumerate() {
-            let input = json!({
-                "session_id": format!("session-{index}-{}", "x".repeat(400)),
-                "hook_event_name": event,
-                "source": "startup", "prompt": "private-concurrent-prompt"
-            });
+            let input = wire(event, index);
             child
                 .stdin
                 .take()
@@ -180,9 +172,27 @@ fn concurrent() {
         assert_eq!(records.len(), 32);
         let mut identities = std::collections::BTreeSet::new();
         for record in records {
+            let record = if event == "PreToolUse" {
+                assert_eq!(record["schema"], "locus.adapter.attempt/v2");
+                assert!(identities.insert(record["command"]["id"].as_str().unwrap().to_owned()));
+                assert_eq!(record["command"]["outcome"]["status"], "accepted");
+                record["hook"].clone()
+            } else {
+                record
+            };
             assert!(identities.insert(record["id"].as_str().unwrap().to_owned()));
             assert_eq!(record["schema"], "locus.adapter.attempt/v1");
             assert_eq!(record["outcome"]["status"], status);
         }
     }
+}
+
+fn wire(event: &str, index: usize) -> Value {
+    json!({
+        "session_id": format!("session-{index}-{}", "x".repeat(400)),
+        "hook_event_name": event,
+        "source": "startup", "prompt": "private-concurrent-prompt",
+        "turn_id":"turn", "tool_use_id": format!("call-{index}"), "tool_name":"Bash",
+        "tool_input":{"command":"gh api private-sentinel"}
+    })
 }

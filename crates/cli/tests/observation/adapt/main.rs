@@ -1,6 +1,8 @@
 #[path = "quality/main.rs"]
 mod quality;
 
+mod command;
+mod measure;
 mod wire;
 
 use serde_json::{Value, json};
@@ -33,7 +35,7 @@ fn invoke(buffer: &Path, input: &[u8]) -> Output {
     output
 }
 
-fn records(buffer: &Path) -> Vec<Value> {
+fn atoms(buffer: &Path) -> Vec<Value> {
     std::fs::read_dir(buffer)
         .unwrap()
         .filter_map(|entry| {
@@ -47,6 +49,13 @@ fn records(buffer: &Path) -> Vec<Value> {
                 .map(|line| serde_json::from_str(line).unwrap())
                 .collect::<Vec<_>>()
         })
+        .collect()
+}
+
+fn records(buffer: &Path) -> Vec<Value> {
+    atoms(buffer)
+        .into_iter()
+        .filter(|atom| atom["context"]["codex.record"] == "hook.v1")
         .collect()
 }
 

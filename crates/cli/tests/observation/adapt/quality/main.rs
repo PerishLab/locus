@@ -1,4 +1,5 @@
 mod adapter;
+mod command;
 mod world;
 
 use serde_json::{Value, json};

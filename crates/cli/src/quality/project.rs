@@ -5,6 +5,9 @@ pub(super) fn fact(atom: Atom) -> Result<Fact, String> {
     if atom.producer() != Some("locus-adapter-codex") {
         return Err("API returned an unexpected producer".into());
     }
+    if atom.context().get("codex.record").map(String::as_str) == Some("command.v1") {
+        return command(atom);
+    }
     let payload = atom.payload().ok_or("adapter Atom has no payload")?;
     if payload.get("schema").and_then(serde_json::Value::as_str) != Some("locus.adapter.codex/v1") {
         return Err("unsupported adapter Atom schema".into());
@@ -65,5 +68,44 @@ pub(super) fn fact(atom: Atom) -> Result<Fact, String> {
         side,
         class,
         event: event.into(),
+    })
+}
+
+fn command(atom: Atom) -> Result<Fact, String> {
+    let payload = atom
+        .payload()
+        .and_then(serde_json::Value::as_array)
+        .ok_or("command payload is not a tuple")?;
+    if atom.source().is_some() || payload.len() != 4 {
+        return Err("invalid command projection".into());
+    }
+    let overrides = payload[0]
+        .as_array()
+        .ok_or("command overrides are not an array")?;
+    if overrides.len() > 30
+        || overrides.iter().any(|value| !value.is_string())
+        || payload[1..].iter().any(|value| !value.is_string())
+    {
+        return Err("invalid command tuple".into());
+    }
+    let scope = |role: &str| {
+        atom.context()
+            .get(role)
+            .cloned()
+            .ok_or_else(|| format!("command lacks {role}"))
+    };
+    let kind = scope("codex.command")?;
+    if !matches!(kind.as_str(), "known.v1" | "unknown.v1") {
+        return Err("unsupported command profile".into());
+    }
+    Ok(Fact {
+        at: atom.at(),
+        id: atom.id().ok_or("command lacks acceptance identity")?.into(),
+        group: scope("codex.session")?,
+        round: Some(scope("codex.turn")?),
+        call: Some(scope("codex.tool")?),
+        side: None,
+        class: Some(scope("codex.coverage")?),
+        event: "CommandShape".into(),
     })
 }

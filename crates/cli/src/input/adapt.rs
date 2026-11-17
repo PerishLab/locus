@@ -1,4 +1,5 @@
 mod codex;
+mod command;
 mod outcome;
 mod record;
 mod tool;
@@ -25,7 +26,7 @@ struct Cli {
 enum Source {
     #[command(
         about = "Accept one Codex 0.169 hook JSON object from stdin",
-        after_help = "Explicit invocation enables collection. Input is limited to 1 MiB. Writes a minimal whitelist through the native api reporter as locus-adapter-codex. Emits {} and exits 0 even on collection failure; one bounded locus.adapter.attempt/v1 outcome goes to stderr per completed invocation, never hook decisions or model context. Its local attempt identity is not a source-event ID. Accepted means Engine acceptance; buffer written is not API persistence. Missing invocation, process loss or stderr write failure remain unknown. Invalid adapter arguments also use this hook-safe behavior. No prompt, command, response body, cwd or transcript path is retained. Unknown events refuse. Atom time is acceptance time, not the original event time. Pre/PostToolUse describe hook observations, not process lifetime or business completion. Keep the command synchronous and use a private buffer shared by this adapter only; async hooks can reorder or be cancelled. Global hook installation is separate."
+        after_help = "Explicit invocation enables collection. Input is limited to 1 MiB. Writes a minimal whitelist through the native api reporter as locus-adapter-codex. Emits {} and exits 0 even on collection failure; one bounded outcome goes to stderr per completed invocation (v1 hook-only, v2 paired hook/command outcomes), never hook decisions or model context. Its local attempt identity is not a source-event ID. Accepted means Engine acceptance; buffer written is not API persistence. Missing invocation, process loss or stderr write failure remain unknown. Invalid adapter arguments also use this hook-safe behavior. No prompt, command, response body, cwd or transcript path is retained. Unknown events refuse. Bash PreToolUse also projects one source-less bounded command tuple, scoped by codex.record=command.v1. Select codex.command=known.v1 before prefix inspection; unknown coverage is not known command repetition. Atom time is acceptance time, not the original event time. Pre/PostToolUse describe hook observations, not process lifetime or business completion. Keep the command synchronous and use a private buffer shared by this adapter only; async hooks can reorder or be cancelled. Global hook installation is separate."
     )]
     Codex {
         #[arg(
@@ -47,24 +48,24 @@ pub(crate) fn run(args: Vec<String>) -> ExitCode {
             attempt
                 .issues
                 .push(outcome::Fault::from("arguments.invalid").issue(Stage::Input));
-            return finish(attempt);
+            return finish(attempt, None);
         }
         Err(error) => {
             let _ = write!(io::stdout().lock(), "{error}");
             return ExitCode::SUCCESS;
         }
     };
-    collect(cli.source, &mut attempt);
-    finish(attempt)
+    let command = collect(cli.source, &mut attempt);
+    finish(attempt, command)
 }
 
-fn finish(attempt: Attempt) -> ExitCode {
-    outcome::emit(&attempt);
+fn finish(attempt: Attempt, command: Option<Attempt>) -> ExitCode {
+    outcome::emit(&attempt, command.as_ref());
     let _ = writeln!(io::stdout().lock(), "{{}}");
     ExitCode::SUCCESS
 }
 
-fn collect(source: Source, attempt: &mut Attempt) {
+fn collect(source: Source, attempt: &mut Attempt) -> Option<Attempt> {
     let event = match read(attempt) {
         Ok(event) => event,
         Err(issue) => {
@@ -72,15 +73,27 @@ fn collect(source: Source, attempt: &mut Attempt) {
                 stage: issue.stage.clone(),
             };
             attempt.issues.push(issue);
-            return;
+            return None;
         }
     };
     match source {
-        Source::Codex { buffer, endpoint } => record::append(event, buffer, endpoint, attempt),
+        Source::Codex { buffer, endpoint } => {
+            let (hook, command) = event;
+            record::append(hook, buffer.clone(), endpoint.clone(), attempt);
+            command.map(|event| {
+                let mut command = outcome::start();
+                command.event = Some("CommandShape".into());
+                command.group = Some(event.session.clone());
+                record::append(event, buffer, endpoint, &mut command);
+                command
+            })
+        }
     }
 }
 
-fn read(attempt: &mut Attempt) -> Result<codex::Event, locus_derivation::quality::Issue> {
+fn read(
+    attempt: &mut Attempt,
+) -> Result<(codex::Event, Option<codex::Event>), locus_derivation::quality::Issue> {
     let mut bytes = Vec::new();
     io::stdin()
         .lock()
@@ -91,12 +104,16 @@ fn read(attempt: &mut Attempt) -> Result<codex::Event, locus_derivation::quality
         return Err(outcome::Fault::from("input.limit").issue(Stage::Input));
     }
     outcome::identify(attempt, &bytes);
-    codex::normalize(&bytes).map_err(|fault| {
+    let hook = codex::normalize(&bytes).map_err(|fault| {
         let stage = if fault.code == "input.json" {
             Stage::Input
         } else {
             Stage::Normalize
         };
         fault.issue(stage)
-    })
+    })?;
+    let input = serde_json::from_slice(&bytes)
+        .map_err(|_| outcome::Fault::from("input.json").issue(Stage::Input))?;
+    let command = command::project(&input, &hook);
+    Ok((hook, command))
 }
