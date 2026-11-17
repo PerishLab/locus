@@ -1487,18 +1487,18 @@ dependencies = [
 
 [[package]]
 name = "radicula-context"
-version = "0.13.0"
+version = "0.15.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "5ab2d0cb12f58502b2576d15606ad8b06df7f6dcf78f497bfa459b65a48f8e21"
+checksum = "d4d8b35582054c00812caf190908500fca10f588b175a1448eb16872baab200c"
 dependencies = [
  "pin-project-lite",
 ]
 
 [[package]]
 name = "radicula-git"
-version = "0.13.0"
+version = "0.15.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "640c5a3a4dea8d6a6894fc102a8efd6fee37b519b49d9b03c1464cfc54895acd"
+checksum = "3603f48e7a4a3e670e5cd9f1588aec3a41098e9e91e7409151d56edf49e04c20"
 
 [[package]]
 name = "radicula-lock"
@@ -1508,10 +1508,11 @@ checksum = "f540401cb51e72ca9ba1281a77a10278641712e93b46b09ce6b11c77e60ef944"
 
 [[package]]
 name = "radicula-process"
-version = "0.13.0"
+version = "0.15.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "f5ee0711b1acac2ae3887923c8117059bd48fc0c42a987fd2ddd050336e4a891"
+checksum = "90b65f6b00ad2505bfab0b786e5ac311372f9d26e2476906507bfc71f21add78"
 dependencies = [
+ "libc",
  "serde",
  "sha2",
  "tokio",
