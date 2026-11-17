@@ -21,10 +21,16 @@ pub(super) fn normalize(bytes: &[u8]) -> Result<Event, &'static str> {
             copy(&input, &mut fields, "reason")?;
             copy(&input, &mut fields, "turn_id")?;
         }
-        "PreToolUse" | "PostToolUse" | "PermissionRequest" => {
+        "PreToolUse" | "PostToolUse" => {
             copy(&input, &mut fields, "turn_id")?;
             copy(&input, &mut fields, "tool_use_id")?;
             copy(&input, &mut fields, "tool_name")?;
+            super::tool::observe(&input, &mut fields);
+        }
+        "PermissionRequest" => {
+            copy(&input, &mut fields, "turn_id")?;
+            copy(&input, &mut fields, "tool_name")?;
+            optional(&input, &mut fields, "tool_use_id")?;
             super::tool::observe(&input, &mut fields);
         }
         "SubagentStart" | "SubagentStop" => {
