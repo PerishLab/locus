@@ -350,12 +350,51 @@ configuration file and hands the result to `Policy`.
 - `crates/locus` is the engine and public substrate.
 - `crates/macro` is the source adapter and shares the exact release version.
 - `crates/derivation` is the derivation library over an ordered Atom sequence.
-- `crates/cli` is the `locus` command: it reads the read API, decodes JSONL and renders `crates/derivation` reports.
+- `crates/cli` is the `locus` command: it reads the read API, decodes JSONL and renders `crates/derivation` reports. Its explicit `adapt` entrance accepts external observations through protocol adapters and the existing Engine/reporter, separately from CLI self-observation.
 - `crates/api` is the `locus-api` server: drain, column store and migration, registry, retention, and the read API.
 - `packaging/deb` is the `locus-api` Debian placement: control, maintainer scripts, and `root/` payload.
 - Git hooks are not tracked: `plumb configuration install` writes the Plumb Guard hooks into Git's default hooks path. `runseal.toml` is the Runseal profile.
 
 ## Operating
+
+`locus adapt codex --buffer PRIVATE_DIRECTORY` accepts one Codex 0.169 hook
+JSON object on stdin, at most 1 MiB. Explicit invocation enables this separate
+producer, `locus-adapter-codex`, without enabling CLI self-observation. The buffer
+must be private and dedicated to that producer. `--endpoint` selects its native
+reporter; this hook path requires `http://NUMERIC_IP:PORT` to avoid DNS waits.
+Registration still happens at Engine bootstrap; measure its cost rather than
+assuming hooks have no overhead. Source acceptance and Atom time are separate:
+the current hook contract supplies no general event timestamp. This adapter
+retains observation/correlation facts, not exact process runtime.
+
+Supported events are SessionStart/SessionEnd, UserPromptSubmit, PreToolUse,
+PostToolUse, PermissionRequest, PreCompact/PostCompact, SubagentStart/Stop,
+Stop and Interrupt. Model-request events are explicitly unsupported. Payloads
+carry `locus.adapter.codex/v1`, the supported contract, original event name,
+selected IDs and bounded metadata; session/turn/tool/agent keys are explicit
+context roles. The hook envelope does not identify its emitter version; `supported_contract`
+names the parsing profile and `source_version` remains `unavailable`, never a
+verified client version. No native source-event ID is promised: repeated deliveries
+remain separate accepted Atoms and correlation is not deduplication. No fake
+trace parent, function entry/return or success is derived from a hook.
+
+Only simple direct Santi commands, optionally wrapped by one Runseal seat, are
+classified from tool input; help is separate. Scripts, compound commands,
+global flags and unrecognized operations remain unclassified, never proven
+non-use. Prompt, command, tool-response bodies, cwd and transcript paths are
+discarded. Business delegation and completion still need native receipts and
+artifact evidence. A background process initial return is not terminal.
+
+The adapter emits only `{}` and exits zero, including invalid adapter arguments,
+unknown events and collection errors; bounded diagnostic codes go to stderr.
+It never returns hook decisions or additional context. Help remains ordinary
+help output. Top-level CLI parsing and executable launch failures are outside
+this adapter contract. Use the valid command as a synchronous command hook;
+async hook cancellation/ordering and host process loss remain unknowns.
+Prepare hook configuration in an isolated CODEX_HOME, explicitly enable/trust
+the hook, and compare its records with local session evidence before wider
+activation. Global installation is a separate operational act. Issue #277
+owns this adapter boundary and its source/stable/installed qualification.
 
 - Never commit directly on `main`.
 - Before landing, run `plumb doctor .`, `cargo fmt --all --check`, `cargo clippy --locked --workspace --all-targets -- -D warnings`, `cargo check --locked --workspace --all-targets --release`, `cargo test --locked --workspace`, and `ectropy .`.

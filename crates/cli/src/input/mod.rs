@@ -1,3 +1,5 @@
+pub(crate) mod adapt;
+
 use locus::Atom;
 use std::io::BufRead;
 
