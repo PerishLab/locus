@@ -1,5 +1,8 @@
-use crate::incomplete::Bounds;
+mod incomplete;
+pub(crate) mod instant;
+
 use clap::Args;
+use incomplete::Bounds;
 use serde::Serialize;
 use std::io::{BufRead, BufReader};
 
@@ -15,14 +18,14 @@ pub struct Origin {
     #[arg(
         long,
         value_name = "INSTANT",
-        value_parser = crate::instant::parse,
+        value_parser = crate::origin::instant::parse,
         help = "Keep Atoms at or after this instant: ns since epoch, or RFC3339 with a zone such as 2026-10-17T21:00:00+08:00"
     )]
     from: Option<u64>,
     #[arg(
         long,
         value_name = "INSTANT",
-        value_parser = crate::instant::parse,
+        value_parser = crate::origin::instant::parse,
         help = "Keep Atoms before this instant: ns since epoch, or RFC3339 with a zone such as 2026-10-17T13:00:00Z"
     )]
     to: Option<u64>,
@@ -54,6 +57,22 @@ pub struct Opened {
 }
 
 impl Origin {
+    pub fn slice(
+        api: String,
+        window: locus_derivation::quality::Window,
+        token: Option<String>,
+        producer: &str,
+    ) -> Self {
+        Self {
+            api,
+            from: Some(window.from),
+            to: Some(window.to),
+            select: None,
+            producer: Some(producer.into()),
+            token,
+        }
+    }
+
     #[locus::trace(with = plumb::observation::view())]
     pub fn open(&self) -> Result<Opened, String> {
         let api = &self.api;

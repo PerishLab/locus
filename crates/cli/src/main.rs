@@ -1,10 +1,9 @@
 mod analysis;
-mod incomplete;
 mod input;
-mod instant;
 mod observation;
 mod origin;
-mod signal;
+mod quality;
+pub(crate) use input::signal;
 mod tree;
 
 use clap::{Parser, Subcommand};
@@ -26,6 +25,14 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    #[command(
+        about = "Report external adapter evidence quality",
+        disable_help_flag = true
+    )]
+    Quality {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
     #[command(
         about = "Adapt external observation protocols",
         disable_help_flag = true
@@ -104,6 +111,7 @@ fn main() -> ExitCode {
 
 fn name(command: &Command) -> &'static str {
     match command {
+        Command::Quality { .. } => "quality",
         Command::Adapt { .. } => "adapt",
         Command::Analyze { .. } => "analyze",
         Command::Inspect { .. } => "inspect",
@@ -116,6 +124,7 @@ fn name(command: &Command) -> &'static str {
 #[locus::trace(with = plumb::observation::view())]
 fn execute(command: Command) -> ExitCode {
     match command {
+        Command::Quality { args } => quality::run(args),
         Command::Adapt { args } => input::adapt::run(args),
         Command::Analyze {
             root,

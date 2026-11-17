@@ -1,6 +1,7 @@
 mod derive;
-pub mod evidence;
+pub use inspect::evidence;
 pub mod inspect;
+pub mod quality;
 pub mod query;
-pub mod span;
+pub use derive::span;
 pub mod tree;
