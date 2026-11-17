@@ -103,8 +103,9 @@ pub(super) fn identify(attempt: &mut Attempt, bytes: &[u8]) {
 }
 
 pub(super) fn emit(attempt: &Attempt) {
-    let mut output = io::stderr().lock();
-    if serde_json::to_writer(&mut output, attempt).is_ok() {
-        let _ = writeln!(output);
-    }
+    let Ok(mut record) = serde_json::to_vec(attempt) else {
+        return;
+    };
+    record.push(b'\n');
+    let _ = io::stderr().lock().write_all(&record);
 }

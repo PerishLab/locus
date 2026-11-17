@@ -403,7 +403,10 @@ The completed invocation emits one `locus.adapter.attempt/v1` outcome on stderr,
 including a local attempt identity, available receive time and validated correlation,
 rejection stage or Engine acceptance with buffer written/failed/unknown, any observed
 Atom identity, and bounded issues. This is separate from the host-safe exit and
-never enters its own Atom reporter. Buffer written means reporter handoff, not
+never enters its own Atom reporter. A complete outcome and newline are encoded before
+stderr receives the record in one write, so shared append capture does not interleave
+serializer fragments across processes; failed or partial OS output stays unknown.
+Buffer written means reporter handoff, not
 central persistence. Missing invocation, process loss or failed diagnostic output
 remain unknown. Classification carries its parsing profile and describes command
 shape rather than execution or business completion.
