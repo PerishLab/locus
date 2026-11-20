@@ -1,0 +1,10 @@
+issuer: ""
+jwks: {}
+image:
+  repository: ghcr.io/perishlab/locus
+  tag: ""
+  pullPolicy: IfNotPresent
+storage:
+  size: 1Gi
+  className: ""
+  existingClaim: ""

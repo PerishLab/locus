@@ -46,7 +46,11 @@ pub struct Record {
 impl Record {
     pub fn parse(line: &[u8]) -> Result<Self, String> {
         let atom: Atom = serde_json::from_slice(line).map_err(|error| error.to_string())?;
-        Ok(Self {
+        Ok(Self::encode(line, &atom))
+    }
+
+    pub(crate) fn encode(line: &[u8], atom: &Atom) -> Self {
+        Self {
             bytes: line.to_vec(),
             at: atom.at(),
             trace: atom
@@ -54,7 +58,7 @@ impl Record {
                 .get(Role::trace().text())
                 .cloned()
                 .unwrap_or_default(),
-        })
+        }
     }
 
     pub fn bytes(&self) -> &[u8] {

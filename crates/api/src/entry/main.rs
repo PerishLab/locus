@@ -1,3 +1,4 @@
+mod access;
 mod cycle;
 mod doctor;
 mod home;
@@ -27,6 +28,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    #[command(about = "Grant or revoke machine access to one producer in the local estate")]
+    Access(access::Access),
     #[command(about = "Record product Atoms faithfully and serve them back")]
     Serve(Serve),
     #[command(name = "export-openapi", about = "Print the OpenAPI document")]
@@ -85,6 +88,13 @@ fn main() -> ExitCode {
                 ExitCode::from(2)
             }
         },
+        Command::Access(access) => match access.run() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(error) => {
+                eprintln!("locus-api: {error}");
+                ExitCode::from(2)
+            }
+        },
         Command::Doctor(doctor) => diagnose(doctor),
         Command::Openapi => {
             let observer = observation::start("api.export-openapi");
@@ -128,7 +138,9 @@ fn run(serve: Serve) -> Result<(), String> {
     }
     let runtime = tokio::runtime::Runtime::new().map_err(|error| error.to_string())?;
     let columns = runtime.block_on(Columns::open(&home, runtime.handle().clone()))?;
-    let store: Arc<dyn Store> = Arc::new(columns);
+    let columns = Arc::new(columns);
+    let store: Arc<dyn Store> = columns.clone();
+    let edge = server::Authority::load(&home)?;
     let observer = observation::Watch::start(home.join("state/locus-api"));
     let legacy = home.join("store");
     if legacy.is_dir() {
@@ -154,16 +166,35 @@ fn run(serve: Serve) -> Result<(), String> {
         let listener = tokio::net::TcpListener::bind(serve.listen)
             .await
             .map_err(|error| format!("cannot listen on {}: {error}", serve.listen))?;
-        let shutdown = async {
-            let _ = tokio::signal::ctrl_c().await;
+        let (end, signal) = tokio::sync::watch::channel(false);
+        let mut local = signal.clone();
+        let mut remote = signal;
+        let shared = Shared::new(store, registry, retention).readers(readers);
+        let serving = server::serve(listener, shared, async move {
+            let _ = local.changed().await;
+        });
+        let machine = match edge {
+            Some((address, authority)) => Some((
+                tokio::net::TcpListener::bind(address)
+                    .await
+                    .map_err(|e| e.to_string())?,
+                server::edge(columns, authority, retention),
+            )),
+            None => None,
         };
-        server::serve(
-            listener,
-            Shared::new(store, registry, retention).readers(readers),
-            shutdown,
-        )
-        .await
-        .map_err(|error| error.to_string())
+        tokio::spawn(async move {
+            let _ = tokio::signal::ctrl_c().await;
+            let _ = end.send(true);
+        });
+        if let Some((listener, router)) = machine {
+            let remote = axum::serve(listener, router).with_graceful_shutdown(async move {
+                let _ = remote.changed().await;
+            });
+            tokio::try_join!(serving, std::future::IntoFuture::into_future(remote))
+                .map_err(|e| e.to_string())?;
+            return Ok(());
+        }
+        serving.await.map_err(|error| error.to_string())
     })
 }
 
