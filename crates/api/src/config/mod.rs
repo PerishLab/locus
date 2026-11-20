@@ -11,6 +11,7 @@ const FILE: &str = "locus-api.toml";
 #[serde(deny_unknown_fields)]
 pub(crate) struct Declared {
     pub(crate) retention: Option<Section>,
+    pub(crate) ensign: Option<crate::server::identity::Ensign>,
     #[serde(default)]
     pub(crate) reader: Vec<Reader>,
     pub(crate) producers: Option<Producers>,

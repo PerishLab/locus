@@ -1,3 +1,5 @@
+pub(crate) mod identity;
+mod ingress;
 use crate::access::Readers;
 use crate::registry::Registry;
 use crate::retention::{self, Retention};
@@ -8,6 +10,8 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+pub use identity::Authority;
+pub use ingress::edge;
 use locus::{Key, Role};
 use serde::{Deserialize, Serialize};
 use std::future::Future;
@@ -134,7 +138,7 @@ impl Params {
         title = "locus-api",
         description = "Faithful Atom recording and retrieval"
     ),
-    paths(health, atoms, spools),
+    paths(health, atoms, ingress::append, spools),
     components(schemas(Health, Fault, Detail, Enrollment))
 )]
 pub struct Document;

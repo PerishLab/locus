@@ -1,0 +1,12 @@
+{{- if empty .Values.jwks.keys }}{{ fail "trusted public jwks.keys is required" }}{{ end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+data:
+  locus-api.toml: |
+    [ensign]
+    issuer = {{ required "issuer is required" .Values.issuer | toJson }}
+    keys = "/etc/locus/jwks.json"
+    listen = "0.0.0.0:8080"
+  jwks.json: {{ required "trusted public jwks is required" .Values.jwks | toJson | quote }}

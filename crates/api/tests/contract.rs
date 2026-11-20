@@ -1,8 +1,8 @@
 use sha2::{Digest, Sha256};
 use std::process::Command;
 
-const OPENAPI: &str = "960f1c14b8449e3f5b764478c891f12f9ff9fc83d7d90147b89e723c1bfe76fb";
-const HELP: &str = "6e95ee6988ec1dc33fffb50b16657a9330b8ebfce2b39826069f0c8e89a2d1a1";
+const OPENAPI: &str = "6474d449d437db143b18abef0dee20ac36697c222936924a29c0cc1b4190daf8";
+const HELP: &str = "9486da4dbe757abe18bee5302cf8d41d69aa7d33c394caa62eddc23a6891559c";
 
 #[test]
 fn openapi() {
@@ -19,6 +19,7 @@ fn help() {
     let tree = [
         vec!["--help"],
         vec!["serve", "--help"],
+        vec!["access", "--help"],
         vec!["export-openapi", "--help"],
         vec!["doctor", "--help"],
     ]

@@ -175,6 +175,16 @@ impl<'a> Home<'a> {
                 );
             }
         };
+        if Retention::read(self.path).is_ok()
+            && let Err(error) = locus_api::server::Authority::load(self.path)
+        {
+            return Check::new(
+                "config",
+                Status::Fail,
+                error,
+                Some("Check [ensign] issuer, listen and the trusted public keys file."),
+            );
+        }
         let guard = match readers.names().as_slice() {
             [] => "; the read API is open".to_string(),
             names => format!("; readers {} guard the read API", names.join(", ")),

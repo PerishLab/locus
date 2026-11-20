@@ -279,6 +279,26 @@ and engine diagnostic handoff.
   matches one; without them it stays open. `/health` and `POST /api/v1/spools`
   are never guarded, so registration never blocks a product. Names and digests
   are unique; a malformed reader refuses at startup and fails doctor.
+- An optional `[ensign]` section in locus-api.toml declares a separate machine
+  `listen` socket, the exact trusted `issuer` (HTTPS, or an HTTP loopback IP for
+  a colocated authority), and `keys`, a public ES256 JWKS file. Only expose the
+  machine socket through a private TLS ingress. The loopback listener continues
+  to own spool registration and local reader access. Reload the JWKS at process
+  restart; allow old and new trusted kids to overlap during issuer rotation.
+- Each machine GET or POST to `/api/v1/atoms?producer=NAME` presents the
+  device key with `Authorization: Bearer`. The receiver exchanges it online at
+  the configured issuer for audience `locus`, verifies signature, issuer,
+  audience, kind and time, and resolves the (issuer, subject) Actor locally.
+  Offline possession of a prior JWT cannot admit a new batch.
+- Use `locus-api access --home HOME grant --issuer ISSUER --subject SUBJECT
+  --producer NAME append` (or `scan`) as the local estate holder. `revoke`
+  withdraws that exact grant. Remote callers never receive the holder face.
+  Posting application/x-ndjson requires a stable Idempotency-Key, complete
+  LF-terminated lines and an explicit producer and record id on every Atom.
+  The complete batch must match NAME. Status 204 acknowledges completed column
+  persistence. A lost reply is retried with the original contents and label
+  within the column store's existing replay window.
+
 - `locus-api` observes itself through Locus, never through tracing
   subscribers. The `[locus] enabled` switch in `config.toml` under the
   platform `.locus` home, the same gate `export-openapi` reads and separate
@@ -433,7 +453,7 @@ owns this adapter boundary and its source/stable/installed qualification.
   to the `perish` registry at `cargo.perish.uk`; the `locus` command reaches
   an operator through `locus-cli`. Locus declares no skill.
 - `locus-api` is the one declared binary, built for `x86_64-unknown-linux-gnu`
-  with `install = false`, and ships only as the Debian placement in
+  with `install = false`, and ships as the Debian placement in
   `packaging/deb` (`linux-x64-deb` in the seal; wharf keeps no apt
   repository). The package carries `locus-api@.service`, which runs the
   zero-flag server as `User=%i` with its home at that user's `.locus`, so it
@@ -441,6 +461,18 @@ owns this adapter boundary and its source/stable/installed qualification.
   permissions. Its maintainer scripts only reload systemd: they never enable,
   start, restart, or delete data. An operator enables it per user with
   `systemctl enable --now locus-api@<user>`.
+- Wharf also places the same `locus-api` binary in the Linux OCI image
+  `ghcr.io/perishlab/locus`. Its entrypoint preserves `--version` and every
+  service or access command. UID/GID 10001 owns `/data`; the per-user
+  Debian service keeps its existing home and defaults.
+- The `locus` chart mounts its [ensign] settings and trusted public JWKS
+  read-only. Its single replica holds one writable PVC at /data and its
+  ClusterIP Service exposes only the machine listener on 8080. The local
+  loopback spool and legacy-reader socket is unexposed. The installation
+  supplies an exact HTTPS issuer and public JWKS. Provision producer grants
+  through the local `locus-api access --home /data` command. Device API keys
+  belong to their callers and do not enter the chart. TLS and LAN reachability
+  belong to the consuming deployment.
 - A release follows Plumb's lifecycle (`plumb release --help`); wharf
   publishes the crates in dependency order and reads each one back from the
   index. A rerun publishes only what is missing.

@@ -22,6 +22,15 @@ note = "Committed inert Runseal resources."
 name = ["Cargo.toml", "Cargo.lock"]
 note = "Rust workspace anchors."
 
+[[layout.file]]
+name = ["Containerfile"]
+note = "Wharf constructs the Locus API image from the formal Linux binary."
+
+[[layout.seat]]
+path = "charts/*"
+anchor = ["Chart.yaml"]
+note = "Helm deployment for the machine service."
+
 [identity]
 ns = "locus"
 
@@ -42,6 +51,17 @@ install = false
 [release.deb]
 binary = "locus-api"
 root = "packaging/deb"
+
+[release.oci]
+registry = "ghcr.io"
+image = "perishlab/locus"
+account = "PerishLab"
+binary = "locus-api"
+
+[release.chart]
+registry = "ghcr.io"
+chart = "perishlab/locus"
+account = "PerishLab"
 
 [release.cargo]
 registry = "perish"

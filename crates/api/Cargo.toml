@@ -12,6 +12,7 @@ name = "locus-api"
 path = "src/entry/main.rs"
 
 [dependencies]
+radicula-oidc.workspace = true
 radicula-config = { workspace = true }
 axum = { workspace = true }
 clap = { workspace = true }
@@ -25,6 +26,6 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = { workspace = true }
-ureq = { workspace = true }
+ureq = { workspace = true, features = ["json"] }
 utoipa = { workspace = true }
 
