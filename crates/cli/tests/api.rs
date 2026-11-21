@@ -255,3 +255,44 @@ fn token() {
         );
     }
 }
+
+#[test]
+fn credentials() {
+    let readers = Readers::default()
+        .with("profile", &access::digest("alpha"))
+        .unwrap();
+    let served = guarded(Retention::default(), readers);
+    let dir = tempfile::tempdir().unwrap();
+    let key = dir.path().join("read.key");
+    fs::write(&key, b"alpha\n").unwrap();
+    let configured = |api: &str| {
+        let mut cmd = stub::locus();
+        cmd.env("LOCUS_API", api)
+            .env("LOCUS_API_TOKEN_FILE", &key)
+            .env_remove("LOCUS_API_TOKEN")
+            .args(["query", "locus.trace"]);
+        cmd
+    };
+    assert!(configured(&served.api).output().unwrap().status.success());
+    assert!(
+        !configured(CLOSED)
+            .args(["--api", &served.api])
+            .output()
+            .unwrap()
+            .status
+            .success()
+    );
+    assert!(
+        configured(CLOSED)
+            .args(["--api", &served.api, "--token-file"])
+            .arg(&key)
+            .output()
+            .unwrap()
+            .status
+            .success()
+    );
+    fs::write(&key, b"alpha\nextra\n").unwrap();
+    let error = configured(&served.api).output().unwrap();
+    assert!(!error.status.success());
+    assert!(!String::from_utf8_lossy(&error.stderr).contains("alpha"));
+}

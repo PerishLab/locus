@@ -35,6 +35,14 @@ pub(super) fn build(options: &Value) -> Result<Box<dyn Report>, Error> {
     let endpoint = text("endpoint")?;
     authority(endpoint)?;
     let spool = spool::open(text("path")?, CEILING, SEGMENT)?.aged(spool::AGE);
+    if spool
+        .directory()
+        .join("delivery.json")
+        .try_exists()
+        .map_err(|_| Error::config("cannot inspect buffer"))?
+    {
+        return Err(Error::config("api reporter requires its own buffer"));
+    }
     Ok(Box::new(Api {
         endpoint: endpoint.trim_end_matches('/').to_string(),
         spool,

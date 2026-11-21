@@ -26,7 +26,7 @@ struct Cli {
 enum Source {
     #[command(
         about = "Accept one Codex 0.169 hook JSON object from stdin",
-        after_help = "Explicit invocation enables collection. Input is limited to 1 MiB. Writes a minimal whitelist through the native api reporter as locus-adapter-codex. Emits {} and exits 0 even on collection failure; one bounded outcome goes to stderr per completed invocation (v1 hook-only, v2 paired hook/command outcomes), never hook decisions or model context. Its local attempt identity is not a source-event ID. Accepted means Engine acceptance; buffer written is not API persistence. Missing invocation, process loss or stderr write failure remain unknown. Invalid adapter arguments also use this hook-safe behavior. No prompt, command, response body, cwd or transcript path is retained. Unknown events refuse. Bash PreToolUse also projects one source-less bounded command tuple, scoped by codex.record=command.v1. Select codex.command=known.v1 before prefix inspection; unknown coverage is not known command repetition. Atom time is acceptance time, not the original event time. Pre/PostToolUse describe hook observations, not process lifetime or business completion. Keep the command synchronous and use a private buffer shared by this adapter only; async hooks can reorder or be cancelled. Global hook installation is separate."
+        after_help = "Explicit invocation enables collection. Input is limited to 1 MiB. Writes a minimal whitelist as locus-adapter-codex. With --key-file and an HTTPS origin, accepted records enter a dedicated durable queue and are sent directly. Use locus deliver to retry. With a numeric HTTP endpoint, the adapter registers the legacy api spool. Emits {} and exits 0 even on collection failure; one bounded outcome goes to stderr per completed invocation (v1 hook-only, v2 paired hook/command outcomes), never hook decisions or model context. Its local attempt identity is not a source-event ID. Accepted means Engine acceptance; buffer written is not API persistence. Missing invocation, process loss or stderr write failure remain unknown. Invalid adapter arguments also use this hook-safe behavior. No prompt, command, response body, cwd or transcript path is retained. Unknown events refuse. Bash PreToolUse also projects one source-less bounded command tuple, scoped by codex.record=command.v1. Select codex.command=known.v1 before prefix inspection; unknown coverage is not known command repetition. Atom time is acceptance time, not the original event time. Pre/PostToolUse describe hook observations, not process lifetime or business completion. Keep the command synchronous and use a private buffer shared by this adapter only; async hooks can reorder or be cancelled. Global hook installation is separate."
     )]
     Codex {
         #[arg(
@@ -36,6 +36,12 @@ enum Source {
         buffer: PathBuf,
         #[arg(long, default_value = "http://127.0.0.1:43308")]
         endpoint: String,
+        #[arg(
+            long = "key-file",
+            value_name = "PATH",
+            help = "Use the durable HTTPS reporter with this machine-key file"
+        )]
+        credential: Option<PathBuf>,
     },
 }
 
@@ -77,14 +83,24 @@ fn collect(source: Source, attempt: &mut Attempt) -> Option<Attempt> {
         }
     };
     match source {
-        Source::Codex { buffer, endpoint } => {
+        Source::Codex {
+            buffer,
+            endpoint,
+            credential,
+        } => {
             let (hook, command) = event;
-            record::append(hook, buffer.clone(), endpoint.clone(), attempt);
+            let target = record::Target {
+                buffer,
+                endpoint,
+                credential,
+            };
+            let session = record::Session::new(&target);
+            session.append(hook, attempt);
             command.map(|event| {
                 let mut command = outcome::start();
                 command.event = Some("CommandShape".into());
                 command.group = Some(event.session.clone());
-                record::append(event, buffer, endpoint, &mut command);
+                session.append(event, &mut command);
                 command
             })
         }

@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+mod queue;
 mod seal;
 
 pub(super) const AGE: Duration = Duration::from_secs(60);
@@ -26,6 +27,9 @@ pub fn segments(directory: &Path) -> io::Result<Vec<PathBuf>> {
 }
 
 pub fn claim(directory: &Path) -> io::Result<Vec<PathBuf>> {
+    if directory.join("delivery.json").try_exists()? {
+        return Err(io::Error::other("HTTPS delivery owns this buffer"));
+    }
     seal::expired(directory, SystemTime::now())?;
     for path in listed(directory, SEALED)? {
         let name = path

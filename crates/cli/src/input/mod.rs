@@ -1,7 +1,8 @@
 pub(crate) mod adapt;
+pub(crate) mod delivery;
 pub(crate) mod signal;
 
-use locus::Atom;
+use locus_derivation::locus::Atom;
 use std::io::BufRead;
 
 #[locus::trace(with = plumb::observation::view())]

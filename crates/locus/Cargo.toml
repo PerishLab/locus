@@ -16,3 +16,13 @@ locus-macro = { workspace = true }
 radicula-lock = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+rusqlite = { workspace = true }
+ureq = { workspace = true, features = ["platform-verifier"] }
+sha2 = { workspace = true }
+url = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+rustix = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

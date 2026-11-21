@@ -10,6 +10,8 @@ pub(super) struct Access {
     #[arg(
         long,
         default_value = "http://127.0.0.1:43308",
+        env = "LOCUS_API",
+        hide_env_values = true,
         value_name = "URL",
         help = "Locus API to read"
     )]
@@ -18,13 +20,8 @@ pub(super) struct Access {
     from: u64,
     #[arg(long, value_name = "INSTANT", value_parser = crate::origin::instant::parse, help = "Receive time at exclusive window end; ns or zoned RFC3339")]
     to: u64,
-    #[arg(
-        long,
-        env = "LOCUS_API_TOKEN",
-        hide_env_values = true,
-        help = "Reader bearer token; never observed"
-    )]
-    token: Option<String>,
+    #[command(flatten)]
+    credentials: crate::origin::Credentials,
 }
 
 impl Access {
@@ -34,7 +31,7 @@ impl Access {
             to: self.to,
         };
         (
-            Origin::slice(self.api, window, self.token, "locus-adapter-codex"),
+            Origin::slice(self.api, window, self.credentials, "locus-adapter-codex"),
             window,
         )
     }

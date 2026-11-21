@@ -1,5 +1,9 @@
 mod api;
+pub mod delivery;
+mod https;
+mod launcher;
 pub mod spool;
+mod worker;
 
 pub(crate) use api::{Target, enroll};
 
@@ -30,6 +34,32 @@ impl Spec {
         )
     }
 
+    pub fn https(
+        endpoint: impl Into<String>,
+        credential: impl Into<PathBuf>,
+        path: impl Into<PathBuf>,
+    ) -> Self {
+        let credential = credential.into();
+        let path = path.into();
+        Self::new(
+            "https",
+            json!({"endpoint":endpoint.into(), "key_file":credential.to_str(), "path":path.to_str()}),
+        )
+    }
+
+    pub fn installed(self) -> Self {
+        match launcher::installed() {
+            Some(path) => self.sender(path),
+            None => self,
+        }
+    }
+    pub fn sender(mut self, path: impl Into<PathBuf>) -> Self {
+        if let Some(options) = self.options.as_object_mut() {
+            options.insert("sender".into(), json!(path.into().to_str()));
+        }
+        self
+    }
+
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -42,14 +72,19 @@ impl Spec {
 pub(crate) trait Report: Send + Sync {
     fn report(&self, atom: &Atom) -> Result<Option<String>, String>;
 
+    fn settle(&self) -> Result<(), String> {
+        Ok(())
+    }
+
     fn target(&self) -> Option<Target> {
         None
     }
 }
 
-pub(crate) fn build(spec: &Spec) -> Result<Box<dyn Report>, Error> {
+pub(crate) fn build(spec: &Spec, producer: Option<&str>) -> Result<Box<dyn Report>, Error> {
     match spec.name() {
         "api" => api::build(spec.options()),
+        "https" => https::build(spec.options(), producer),
         name => Err(Error::config(format!("unknown reporter: {name}"))),
     }
 }
