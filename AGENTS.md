@@ -55,12 +55,14 @@ and engine diagnostic handoff.
 - Reporting starts only after acceptance and cannot change accepted facts.
   Reporter failure never rolls acceptance back.
 - Callers select Locus-owned reporters through config. They cannot invoke,
-  inject, flush, retry, or drain reporter implementations.
+  inject, or modify reporter implementations. At a normal command boundary,
+  `Engine::settle()` groups the disk durability barrier and schedules pending
+  HTTPS delivery. Settle and drop share this work for the same records.
 - Reporter declarations are exact. A new reporting capability enters as a new
   reporter name, never as a new option on an existing one, so an older engine
   refuses it at bootstrap through the diagnostic path instead of half-honoring
   it.
-- The `api` reporter is the only reporter. Its buffer hands Atoms off through
+- The `api` reporter buffer hands Atoms off through
   `active.jsonl` and immutable, time-ordered `sealed-*` segments, with one
   contract on every platform a product ships to. Writers serialize on `spool.lock`, a file never renamed,
   through a persistent Radicula existing-file Gate inside the data mutex. The
@@ -85,7 +87,53 @@ and engine diagnostic handoff.
   endpoint when the engine is built. Registration never blocks or fails the
   product: a buffer that has registered before stays silent while the server is
   down, and one never registered reports `reporter.registration` to the hook.
-- The Locus-owned spool ceiling bounds active, sealed, and claimed bytes
+- For native machine ingress, declare `Spec::https(endpoint, key_file, path)`
+  with an HTTPS origin, absolute machine-key file and private absolute buffer.
+  Use one directory and one active sender queue per producer and destination.
+  On first use the reporter binds that directory to the source, origin and key
+  path. It refuses a change of binding or a legacy spool. Rotate credentials
+  at the same path. Queue metadata holds only the reference. Each buffered
+  Atom commits as one record in a dedicated SQLite WAL journal. Such commits
+  survive abrupt loss of the producer process. A host power loss before the
+  command's final FULL barrier or a sender's FULL transaction can lose recent
+  NORMAL commits. Normal command exit shares one FULL barrier across its
+  records. Transfer locks never span a caller's journal transaction.
+  Engine acceptance, a successful buffer write and a remote 204 are distinct.
+  The sender uses system TLS trust, disallows redirects and sends one native
+  Atom batch at a time. After an interrupted or refused request it retries
+  the exact immutable bytes and idempotency key. It confirms only on 204,
+  and retires the pinned rows and flight together in a FULL transaction. No subsequent
+  batch passes an unconfirmed one. Multiple independent queues writing the
+  same producer exceed this retry contract when the server's token window
+  advances. Use a single dedicated queue for this reporter per producer.
+- Ordinary batches are at most 256 KiB or 512 lines. A larger single line
+  travels alone up to 1 MiB including LF. Larger records fail local handoff.
+  At 512 MiB of pending records the HTTPS reporter refuses new writes. Existing
+  records survive all refusals including 401, 403 and 413. Configure the
+  intended ingress to accept the maximum single line. Recover from a 413 by
+  correcting the ingress limit and retrying the original batch.
+- Normal short commands automatically attempt delivery without a listener.
+  On Unix `Spec::https(...).sender(absolute_locus_executable)` launches a
+  one-shot native `locus deliver` with the private queue as its only input.
+  It does not await a network round trip on the business thread. The native
+  Codex adapter selects its own executable when eligible. Sender paths must
+  be canonical, executable ordinary files. The file and every ancestor must
+  belong to the effective user or root and reject group/other writes. A
+  root-owned sticky directory is allowed on the path. Child standard streams
+  are null. The inherited environment is limited to SSL_CERT_FILE and
+  SSL_CERT_DIR for platform trust. No PATH search is performed. An explicit
+  helper is unavailable on platforms without these ownership checks.
+  With the three-argument Spec the asynchronous sender runs in process.
+  A normal close waits at most 300 ms for that mode's network work. Live
+  producers schedule delivery after at most a 250 ms coalescing interval.
+  On process loss, slow service, or an idle source a scheduler may run
+  `locus deliver --buffer /absolute/dir`, repeating the option for each
+  producer. It reads the binding, reloads the key for each request and
+  attempts up to 16 batches per directory. An absent directory is skipped.
+  A busy sender retains ownership. Other directories still progress after
+  a refusal, which makes the command exit unsuccessfully. Run again while
+  backlog remains. The operation uses no observation hook of its own.
+- The Locus-owned legacy spool ceiling bounds active, sealed, and claimed bytes
   and is only a safety valve. Past it, the oldest unclaimed sealed segments are
   deleted, their records counted in `loss.jsonl`, and the loss reported to the
   hook as `reporter.loss`. Loss never re-enters the Atom stream.
@@ -111,8 +159,13 @@ and engine diagnostic handoff.
     Query by role and key holds its matching Atoms until the sequence ends,
     because no partial output may precede a refusal.
 - The CLI is an adapter: it reads Atoms only from a `locus-api` read API, at `--api` (default
-  `http://127.0.0.1:43308`), narrowed by its window, selector and producer.
-  It sends `--token` (or `LOCUS_API_TOKEN`) as a Bearer token, never observed.
+  `LOCUS_API`, falling back to `http://127.0.0.1:43308`), narrowed by its
+  window, selector and producer. Use a one-line reader key in `--token-file`
+  or `LOCUS_API_TOKEN_FILE`. Explicit `--token` and legacy `LOCUS_API_TOKEN`
+  remain available. Default credentials stay on their configured origin;
+  legacy literal loopback reads retain local token compatibility. Remote
+  credentials require HTTPS. Readers verify the system CA chain and reject
+  redirects. Select a producer when querying the machine listener.
   When the server reports a retained boundary, every summary carries it as
   `retained`, so a headless return can be read against it. Runs go through
   `plumb::observation`; a refused read records its API fault code on `locus.fault`.
@@ -122,9 +175,9 @@ and engine diagnostic handoff.
   code and leaves its spans open, as a kill does.
 - Crates that observe themselves through `plumb::observation` (locus-cli, locus-api)
   take `locus` from the published registry `"0"`, the same copy plumb carries.
-  `locus-derivation` also consumes that published Atom contract and never depends
-  on plumb; the CLI consumes workspace derivation so its adapters and new
-  derivations are proved together without a locus -> plumb -> locus cycle.
+  `locus-derivation` consumes and re-exports its matching workspace Locus
+  SDK for Atom input. The CLI uses this exact SDK for its Codex adapter and
+  derivation inputs. Its own tracing uses the SDK linked by published Plumb.
   No `[patch]` unifies the workspace engine with plumb's.
 - Inspection runs Locus's default analyzers unless a product turns them off:
   `trace.size`, `trace.prefix`, `trace.held`, `span.size`, `span.prefix` and
@@ -381,8 +434,9 @@ configuration file and hands the result to `Policy`.
 JSON object on stdin, at most 1 MiB. Explicit invocation enables this separate
 producer, `locus-adapter-codex`, without enabling CLI self-observation. The buffer
 must be private and dedicated to that producer. `--endpoint` selects its native
-reporter; this hook path requires `http://NUMERIC_IP:PORT` to avoid DNS waits.
-Registration still happens at Engine bootstrap; measure its cost rather than
+reporter. A numeric HTTP endpoint uses the original registration path.
+An HTTPS origin with `--key-file /absolute/path` selects durable direct delivery.
+Registration for the legacy reporter happens at Engine bootstrap; measure its cost rather than
 assuming hooks have no overhead. Source acceptance and Atom time are separate:
 the current hook contract supplies no general event timestamp. This adapter
 retains observation/correlation facts, not exact process runtime.

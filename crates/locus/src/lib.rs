@@ -1,6 +1,7 @@
 mod atom;
 pub mod collector;
 mod context;
+pub use reporter::delivery;
 mod engine;
 mod error;
 pub mod generator;

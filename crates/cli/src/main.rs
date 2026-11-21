@@ -1,9 +1,11 @@
 mod analysis;
+use input::delivery;
 mod input;
 mod observation;
 mod origin;
 mod quality;
 pub(crate) use input::signal;
+use locus_derivation::locus::delivery::transport;
 mod tree;
 
 use clap::{Parser, Subcommand};
@@ -17,7 +19,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 #[derive(Parser)]
-#[command(name = "locus", version = plumb::version!("LOCUS"), after_help = "CLI observation is disabled by default. Set [locus] enabled = true in config.toml under ~/.locus on Unix or LOCALAPPDATA/locus on Windows. Buffered observations use state/locus there. endpoint in [locus] overrides LOCUS_API, then http://127.0.0.1:43308. The business --api option only chooses the read API; it does not select the observation endpoint. Observation failures preserve reports and exit codes.")]
+#[command(name = "locus", version = plumb::version!("LOCUS"), after_help = "CLI observation is disabled by default. Set [locus] enabled = true in config.toml under ~/.locus on Unix or LOCALAPPDATA/locus on Windows. Buffered observations use state/locus there. endpoint in [locus] overrides LOCUS_API, then http://127.0.0.1:43308. For reads, --api overrides LOCUS_API. --token-file selects a reader credential. LOCUS_API_TOKEN_FILE applies only to the configured read origin. Observation failures preserve reports and exit codes.")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -25,6 +27,16 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    #[command(about = "Send pending HTTPS Atom batches and exit")]
+    Deliver {
+        #[arg(
+            long,
+            required = true,
+            value_name = "DIR",
+            help = "Dedicated HTTPS reporter buffer; repeat for each producer"
+        )]
+        buffer: Vec<PathBuf>,
+    },
     #[command(
         about = "Report external adapter evidence quality",
         disable_help_flag = true
@@ -90,6 +102,9 @@ fn main() -> ExitCode {
         return ExitCode::from(1);
     }
     let command = Cli::parse().command;
+    if let Command::Deliver { buffer } = &command {
+        return delivery::run(buffer);
+    }
     if let Command::Adapt { args } = command {
         return input::adapt::run(args);
     }
@@ -111,6 +126,7 @@ fn main() -> ExitCode {
 
 fn name(command: &Command) -> &'static str {
     match command {
+        Command::Deliver { .. } => "deliver",
         Command::Quality { .. } => "quality",
         Command::Adapt { .. } => "adapt",
         Command::Analyze { .. } => "analyze",
@@ -124,6 +140,7 @@ fn name(command: &Command) -> &'static str {
 #[locus::trace(with = plumb::observation::view())]
 fn execute(command: Command) -> ExitCode {
     match command {
+        Command::Deliver { buffer } => delivery::run(&buffer),
         Command::Quality { args } => quality::run(args),
         Command::Adapt { args } => input::adapt::run(args),
         Command::Analyze {

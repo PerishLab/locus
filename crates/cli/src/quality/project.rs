@@ -1,4 +1,4 @@
-use locus::Atom;
+use locus_derivation::locus::Atom;
 use locus_derivation::quality::{Fact, Side};
 
 pub(super) fn fact(atom: Atom) -> Result<Fact, String> {

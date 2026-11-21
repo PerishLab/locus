@@ -1,3 +1,4 @@
+mod delivery;
 #[path = "quality/main.rs"]
 mod quality;
 

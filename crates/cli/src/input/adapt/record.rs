@@ -1,5 +1,7 @@
 use super::{codex::Event, outcome::Fault};
-use locus::{Candidate, Config, Context, Engine, Hook, Key, Observation, Policy, Role, Status};
+use locus_derivation::locus::{
+    self, Candidate, Config, Context, Engine, Hook, Key, Observation, Policy, Role, Status,
+};
 use locus_derivation::quality::{Attempt, Buffer, Issue, Progress, Stage};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -50,7 +52,8 @@ impl Hook for Diagnostic {
 
 impl Diagnostic {
     fn settle(&self, attempt: &mut Attempt) {
-        if let Ok(state) = self.0.lock() {
+        if let Ok(mut guard) = self.0.lock() {
+            let state = std::mem::take(&mut *guard);
             attempt.atom.clone_from(&state.atom);
             if matches!(attempt.outcome, Progress::Accepted { .. }) {
                 let buffer = match state.buffered {
@@ -69,38 +72,66 @@ impl Diagnostic {
     }
 }
 
-pub(super) fn append(event: Event, buffer: PathBuf, endpoint: String, attempt: &mut Attempt) {
-    let observer = Arc::new(Diagnostic::default());
-    let result = collect(event, buffer, endpoint, observer.clone());
-    attempt.outcome = match &result {
-        Ok(()) => Progress::Accepted {
-            buffer: Buffer::Unknown,
-        },
-        Err(issue) => Progress::Rejected {
-            stage: issue.stage.clone(),
-        },
-    };
-    observer.settle(attempt);
-    if let Err(issue) = result {
-        attempt.issues.push(issue);
+pub(super) struct Target {
+    pub(super) buffer: PathBuf,
+    pub(super) endpoint: String,
+    pub(super) credential: Option<PathBuf>,
+}
+
+impl Target {
+    fn reporter(&self) -> Result<locus::reporter::Spec, Issue> {
+        if let Some(key) = &self.credential {
+            let spec = locus::reporter::Spec::https(&self.endpoint, key, &self.buffer);
+            return Ok(spec.installed());
+        }
+        self.endpoint
+            .strip_prefix("http://")
+            .and_then(|authority| authority.parse::<std::net::SocketAddr>().ok())
+            .ok_or_else(|| Fault::from("endpoint.numeric").issue(Stage::Bootstrap))?;
+        Ok(locus::reporter::Spec::api(&self.endpoint, &self.buffer))
     }
 }
 
-fn collect(
-    event: Event,
-    buffer: PathBuf,
-    endpoint: String,
+pub(super) struct Session {
+    engine: Result<Engine, Issue>,
     observer: Arc<Diagnostic>,
-) -> Result<(), Issue> {
-    endpoint
-        .strip_prefix("http://")
-        .and_then(|authority| authority.parse::<std::net::SocketAddr>().ok())
-        .ok_or_else(|| Fault::from("endpoint.numeric").issue(Stage::Bootstrap))?;
-    let policy = Policy::default()
-        .producer("locus-adapter-codex")
-        .reporter(locus::reporter::Spec::api(endpoint, buffer));
-    let engine = Engine::bootstrap(Config::new(policy).hook(observer))
-        .map_err(|_| Fault::from("engine.bootstrap").issue(Stage::Bootstrap))?;
+}
+
+impl Session {
+    pub(super) fn new(target: &Target) -> Self {
+        let observer = Arc::new(Diagnostic::default());
+        let engine = target.reporter().and_then(|spec| {
+            let policy = Policy::default()
+                .producer("locus-adapter-codex")
+                .reporter(spec);
+            Engine::bootstrap(Config::new(policy).hook(observer.clone()))
+                .map_err(|_| Fault::from("engine.bootstrap").issue(Stage::Bootstrap))
+        });
+        Self { engine, observer }
+    }
+
+    pub(super) fn append(&self, event: Event, attempt: &mut Attempt) {
+        let result = self
+            .engine
+            .as_ref()
+            .map_err(Clone::clone)
+            .and_then(|engine| collect(engine, event));
+        attempt.outcome = match &result {
+            Ok(()) => Progress::Accepted {
+                buffer: Buffer::Unknown,
+            },
+            Err(issue) => Progress::Rejected {
+                stage: issue.stage.clone(),
+            },
+        };
+        self.observer.settle(attempt);
+        if let Err(issue) = result {
+            attempt.issues.push(issue);
+        }
+    }
+}
+
+fn collect(engine: &Engine, event: Event) -> Result<(), Issue> {
     let mut candidate = Candidate::event(
         event
             .payload

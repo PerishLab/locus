@@ -45,18 +45,21 @@ impl Engine {
         let collectors = collector::bindings(&policy.collectors)?;
         let fallback = generator::build(&policy.fallback)?;
         let generators = generator::roles(&policy.generators)?;
+        if let Some(producer) = &policy.producer {
+            crate::policy::admit(producer)?;
+        }
         let reporter = if policy.enabled {
             let spec = policy
                 .reporter
                 .as_ref()
                 .ok_or_else(|| Error::config("enabled reporting requires a reporter"))?;
-            Some((spec.name().into(), reporter::build(spec)?))
+            Some((
+                spec.name().into(),
+                reporter::build(spec, policy.producer.as_deref())?,
+            ))
         } else {
             None
         };
-        if let Some(producer) = &policy.producer {
-            crate::policy::admit(producer)?;
-        }
         let target = reporter
             .as_ref()
             .and_then(|(_, reporter)| reporter.target());
@@ -112,6 +115,17 @@ impl Engine {
         let atom = Atom::new(header, &context, choices, candidate);
         self.report(atom);
         Ok(Accepted::new(context))
+    }
+
+    pub fn settle(&self) {
+        if let Some((_, reporter)) = &self.reporter
+            && let Err(error) = reporter.settle()
+        {
+            self.observe(Observation::Diagnostic(Diagnostic::new(
+                "reporter.settle",
+                error,
+            )));
+        }
     }
 
     pub fn fork(&self, frame: &Context) -> Result<Context, Error> {

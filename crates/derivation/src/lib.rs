@@ -1,3 +1,4 @@
+pub use locus;
 mod derive;
 pub use inspect::evidence;
 pub mod inspect;
