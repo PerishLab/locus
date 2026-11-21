@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 #[derive(Parser)]
-#[command(name = "locus", version = plumb::version!("LOCUS"), after_help = "CLI observation is disabled by default. Set [locus] enabled = true in config.toml under ~/.locus on Unix or LOCALAPPDATA/locus on Windows. Buffered observations use state/locus there. endpoint in [locus] overrides LOCUS_API, then http://127.0.0.1:43308. For reads, --api overrides LOCUS_API. --token-file selects a reader credential. LOCUS_API_TOKEN_FILE applies only to the configured read origin. Observation failures preserve reports and exit codes.")]
+#[command(name = "locus", version = plumb::version!("LOCUS"), after_help = "CLI observation is disabled by default. Set [locus] enabled = true in config.toml under ~/.locus on Unix or LOCALAPPDATA/locus on Windows. For HTTPS observation, set endpoint and key_file together. On Unix, sender may name the trusted absolute locus executable. Retry the producer queue with locus deliver --buffer <data-home>/state/locus.https/locus. Legacy HTTP uses state/locus and defaults to http://127.0.0.1:43308. When the local transport fields are absent, LOCUS_API, LOCUS_API_KEY_FILE and LOCUS_SENDER supply them. For reads, --api overrides LOCUS_API. --token-file selects a reader credential. LOCUS_API_TOKEN_FILE applies only to the configured read origin. Observation failures preserve reports and exit codes.")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
