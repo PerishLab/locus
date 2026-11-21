@@ -1456,15 +1456,20 @@ dependencies = [
 
 [[package]]
 name = "locus"
-version = "0.20.1"
+version = "0.21.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "adaa5d2d47ed001c61f0ba3445fbfaf612a242d24414bbe8c5452ed3593a1adb"
+checksum = "9a73c44fed82628b1f97a716c0e569ffdbdee608b6e9de9d44a9a0b9cf5e8e88"
 dependencies = [
  "getrandom 0.3.4",
- "locus-macro 0.20.1",
+ "locus-macro 0.21.0",
  "radicula-lock",
+ "rusqlite",
+ "rustix",
  "serde",
  "serde_json",
+ "sha2",
+ "ureq",
+ "url",
 ]
 
 [[package]]
@@ -1475,7 +1480,7 @@ dependencies = [
  "clap",
  "keel",
  "keel-column",
- "locus 0.20.1",
+ "locus 0.21.0",
  "plumb",
  "pollster",
  "radicula-config",
@@ -1495,7 +1500,7 @@ version = "0.0.0"
 dependencies = [
  "clap",
  "getrandom 0.3.4",
- "locus 0.20.1",
+ "locus 0.21.0",
  "locus-api",
  "locus-derivation",
  "plumb",
@@ -1532,9 +1537,9 @@ dependencies = [
 
 [[package]]
 name = "locus-macro"
-version = "0.20.1"
+version = "0.21.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "01ffcdf9e968777bb8b41230be231c57b1268c145163c8d510095554510637ce"
+checksum = "0980918ab06a782363ce9ac0d49cdf0e5efdc5195b11a40924dc9a1092403cbd"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1832,14 +1837,14 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 
 [[package]]
 name = "plumb"
-version = "0.156.0"
+version = "0.157.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "ad32165421cc709acec961d5346e367579af04f5ddf470c3d0ab8e1af570d5c2"
+checksum = "955abf14f606905e31597a64de800ee2ac3c8ca12b7293d4100255dd82c62844"
 dependencies = [
  "base64 0.22.1",
  "clap",
  "dunce",
- "locus 0.20.1",
+ "locus 0.21.0",
  "object",
  "plumb-macro",
  "radicula-config",
@@ -1860,9 +1865,9 @@ dependencies = [
 
 [[package]]
 name = "plumb-macro"
-version = "0.156.0"
+version = "0.157.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "946a0543f3ae8b494aae4e4dcdab47cc5a739bb2c5bc0b8bfabd8946a4a895b4"
+checksum = "0fdd6261994457bbb82a8e67715f02b1f04a9b0bf10a80851d32326107cd54e9"
 dependencies = [
  "proc-macro2",
  "quote",
