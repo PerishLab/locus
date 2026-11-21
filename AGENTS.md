@@ -173,6 +173,13 @@ and engine diagnostic handoff.
   next record, every traced function returns, and the run finishes and exits
   with 130 or 143. A read still blocked two seconds later exits with the same
   code and leaves its spans open, as a kill does.
+- The normal `locus` command emits its own CLI observations via published
+  Plumb. Under `[locus]` in the CLI data home's `config.toml`, set
+  `enabled = true`, `endpoint` and the absolute writer `key_file` for HTTPS.
+  Unix installations may also set `sender` to the trusted absolute Locus CLI.
+  The queue is `state/locus.https/locus` under that data home. Read operations
+  still use an independent reader credential. The standalone deliver and
+  Codex hook entry points skip self-observation.
 - Crates that observe themselves through `plumb::observation` (locus-cli, locus-api)
   take `locus` from the published registry `"0"`, the same copy plumb carries.
   `locus-derivation` consumes and re-exports its matching workspace Locus

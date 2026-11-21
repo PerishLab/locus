@@ -1,8 +1,8 @@
 #[path = "adapt/main.rs"]
 mod adapt;
-
 #[path = "../inspect/fixture.rs"]
 mod fixture;
+mod producer;
 
 use fixture::{Root, atom, stub};
 use serde_json::{Value, json};
