@@ -1,3 +1,6 @@
 target/
 /.local/
 /.task/
+
+node_modules/
+packages/*/dist/

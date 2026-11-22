@@ -1,0 +1,26 @@
+{
+  "name": "@perishlab/locus-web",
+  "version": "0.0.0",
+  "type": "module",
+  "license": "MIT",
+  "files": ["dist"],
+  "scripts": {
+    "build": "vite build --config src/vite.ts",
+    "prepack": "vite build --config src/vite.ts",
+    "typecheck": "svelte-check --tsconfig tsconfig.json",
+    "test": "pnpm build && node --experimental-strip-types --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@perishlab/crest": "0",
+    "@perishlab/design": "0",
+    "svelte": "5.57.1"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
+    "@types/node": "24.13.3",
+    "sass": "1.105.0",
+    "svelte-check": "4.7.6",
+    "typescript": "6.0.3",
+    "vite": "8.3.1"
+  }
+}

@@ -1,0 +1,8 @@
+packages:
+  - packages/*
+minimumReleaseAgeExclude:
+  - "@perishlab/*"
+allowBuilds:
+  "@parcel/watcher": false
+  esbuild: false
+  sharp: false
