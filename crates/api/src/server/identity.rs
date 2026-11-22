@@ -13,9 +13,11 @@ pub(crate) struct Ensign {
     pub listen: SocketAddr,
     pub issuer: String,
     pub keys: PathBuf,
+    pub browser: Option<super::session::Browser>,
 }
 
 pub struct Authority {
+    pub(super) browser: Option<super::session::Browser>,
     issuer: String,
     keys: Vec<Verifier>,
     client: ureq::Agent,
@@ -64,6 +66,9 @@ impl Authority {
             return Ok(None);
         };
         issuer(&config.issuer)?;
+        if let Some(browser) = &config.browser {
+            browser.validate()?;
+        }
         let bytes = std::fs::read(home.join(config.keys)).map_err(|e| e.to_string())?;
         let keys: Keys = serde_json::from_slice(&bytes).map_err(|_| "invalid Ensign JWKS")?;
         let mut seen = BTreeSet::new();
@@ -99,6 +104,7 @@ impl Authority {
             config.listen,
             Self {
                 issuer: config.issuer,
+                browser: config.browser,
                 keys: trusted,
                 client,
             },
@@ -130,25 +136,42 @@ impl Authority {
         token
             .validate()
             .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?;
+        self.verify(token.token.expose(), "locus", &[("kind", "access")])
+            .map(|c| Owner {
+                issuer: c.iss,
+                subject: c.sub,
+            })
+    }
+
+    pub(super) fn issuer(&self) -> &str {
+        &self.issuer
+    }
+
+    pub(super) fn client(&self) -> &ureq::Agent {
+        &self.client
+    }
+
+    pub(super) fn verify(
+        &self,
+        token: &str,
+        audience: &str,
+        required: &[(&str, &str)],
+    ) -> Result<radicula_oidc::jwt::Claims, StatusCode> {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?
             .as_secs();
         let rules = Rules {
             issuer: &self.issuer,
-            audience: "locus",
+            audience,
             subject: None,
             now,
             leeway: 0,
-            required: &[("kind", "access")],
+            required,
         };
         self.keys
             .iter()
-            .find_map(|key| key.verify(token.token.expose(), &rules).ok())
-            .map(|c| Owner {
-                issuer: c.iss,
-                subject: c.sub,
-            })
+            .find_map(|key| key.verify(token, &rules).ok())
             .ok_or(StatusCode::UNAUTHORIZED)
     }
 }

@@ -592,3 +592,20 @@ grant on /api/v1/atoms. An ungrouped empty window still contains empty buckets.
 A grouped read discovers labels only from authorized samples. A read accepts
 up to seven days, 8192 output buckets across groups, and 65536 source records
 or 16 MiB of source input. Exceeding a budget refuses the whole report.
+
+## Browser reads
+
+The Ensign listener optionally accepts a browser session for reading Atoms
+and metrics. Configure ensign.browser.client as the registered OIDC client
+and ensign.browser.origin as the canonical browser origin. Register that
+origin's /auth/callback with Ensign. Keep the browser, /auth and /api on one
+origin. HTTPS is required outside loopback. Login uses /auth/login, S256,
+a one-use state bound to the browser, a nonce and the locus resource audience.
+Locus verifies both signed tokens against its pinned keys and the two exact
+audiences. Only the opaque session id crosses into the browser.
+
+The pilot uses one replica. Pending flows expire after five minutes and live
+sessions expire with the earlier signed token. Restart invalidates all local
+sessions. POST /auth/logout from the same origin invalidates the session on
+the server. Each read uses the current Keel producer grant. A supplied Bearer
+selects machine authentication. Writes always require the machine credential.
