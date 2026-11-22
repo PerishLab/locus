@@ -1,5 +1,6 @@
 pub(crate) mod identity;
 mod ingress;
+mod metric;
 use crate::access::Readers;
 use crate::registry::Registry;
 use crate::retention::{self, Retention};
@@ -138,7 +139,7 @@ impl Params {
         title = "locus-api",
         description = "Faithful Atom recording and retrieval"
     ),
-    paths(health, atoms, ingress::append, spools),
+    paths(health, atoms, ingress::append, metric::read, spools),
     components(schemas(Health, Fault, Detail, Enrollment))
 )]
 pub struct Document;

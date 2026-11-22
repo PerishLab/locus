@@ -16,15 +16,16 @@ use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 
 #[derive(Clone)]
-struct Gate {
+pub(super) struct Gate {
     authority: Arc<Authority>,
-    columns: Arc<Columns>,
+    pub(super) columns: Arc<Columns>,
     retention: Retention,
 }
 
 pub fn edge(columns: Arc<Columns>, authority: Authority, retention: Retention) -> Router {
     Router::new()
         .route("/health", get(health))
+        .route("/api/v1/metrics", get(super::metric::read))
         .route("/api/v1/atoms", get(scan).post(append))
         .with_state(Gate {
             authority: Arc::new(authority),
@@ -34,7 +35,7 @@ pub fn edge(columns: Arc<Columns>, authority: Authority, retention: Retention) -
 }
 
 impl Gate {
-    async fn actor(&self, headers: &HeaderMap) -> Result<i64, StatusCode> {
+    pub(super) async fn actor(&self, headers: &HeaderMap) -> Result<i64, StatusCode> {
         let mut keys = headers.get_all(header::AUTHORIZATION).iter();
         let key = keys
             .next()
@@ -134,7 +135,7 @@ async fn scan(
     Ok(response)
 }
 
-fn status(error: keel_column::Error) -> StatusCode {
+pub(super) fn status(error: keel_column::Error) -> StatusCode {
     if error.refused() {
         StatusCode::FORBIDDEN
     } else {

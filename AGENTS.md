@@ -565,3 +565,30 @@ command records never inflate tool before/after counts. Old v1 diagnostics and
 old unmarked hook Atoms remain supported; older readers must refuse v2 rather
 than claim complete capture. [CLI examples](crates/cli/README.md) describe
 selection, grouping, evidence lookup, limits and the scope of these observations.
+
+## Metric reads
+
+On the Ensign listener, GET /api/v1/metrics and locus metric use one explicit
+producer grant and the same report. Each immutable metric Atom carries
+metric.name, metric.unit, metric.kind (gauge or counter), and metric.series
+in Context, a finite numeric payload.value and a stable producer event id.
+A series identifies one resource and label set. Optional metric.label.<name>
+roles declare grouping dimensions. A changed series identity starts a new
+sequence. A counter may carry a nonempty metric.epoch as reset evidence.
+
+from and to form a half-open source-time window in UTC nanoseconds. step is a
+positive bucket duration in nanoseconds anchored at from. Gauges report the
+sample-weighted mean. Counters sum successive increases per series, assigning
+each increase to its ending sample. The first in-window observation establishes
+a baseline. An explicit change between two known epochs adds the new value.
+An unexplained decrease or transition to an unknown epoch is discontinuous.
+Empty buckets are missing. Reads use only the samples present in the window.
+
+Replays of a producer event are idempotent. Independent equal observations
+at the same series and instant count once and retain their evidence ids.
+Conflicting values make the bucket a conflict and break the counter baseline.
+Each evidence id and source instant can be read through the same producer
+grant on /api/v1/atoms. An ungrouped empty window still contains empty buckets.
+A grouped read discovers labels only from authorized samples. A read accepts
+up to seven days, 8192 output buckets across groups, and 65536 source records
+or 16 MiB of source input. Exceeding a budget refuses the whole report.

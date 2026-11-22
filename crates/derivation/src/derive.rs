@@ -1,4 +1,5 @@
 mod link;
+pub mod metric;
 mod reach;
 mod report;
 pub mod span;

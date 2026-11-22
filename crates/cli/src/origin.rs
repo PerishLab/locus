@@ -1,5 +1,6 @@
 mod credentials;
 mod incomplete;
+pub(crate) mod metric;
 pub(crate) use credentials::Credentials;
 pub(crate) mod instant;
 

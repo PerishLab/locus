@@ -1481,6 +1481,7 @@ dependencies = [
  "keel",
  "keel-column",
  "locus 0.21.0",
+ "locus-derivation",
  "plumb",
  "pollster",
  "radicula-config",
@@ -1524,6 +1525,7 @@ dependencies = [
  "serde",
  "serde_json",
  "toml",
+ "utoipa",
 ]
 
 [[package]]
