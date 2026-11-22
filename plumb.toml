@@ -1,6 +1,15 @@
 [layout]
 
 [[layout.seat]]
+path = "packages/*"
+anchor = ["package.json"]
+note = "Static browser UI packaged from its production build."
+
+[[layout.file]]
+name = ["package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", ".npmrc"]
+note = "JavaScript workspace and its registry and lock configuration."
+
+[[layout.seat]]
 path = "crates/*"
 anchor = ["Cargo.toml"]
 note = "The locus library, its source adapters, the query CLI, and the locus-api server."
@@ -66,3 +75,8 @@ account = "PerishLab"
 [release.cargo]
 registry = "perish"
 packages = ["locus-macro", "locus", "locus-derivation", "locus-cli"]
+
+
+[release.npm]
+registry = "https://npm.pkg.github.com/"
+packages = ["@perishlab/locus-web"]

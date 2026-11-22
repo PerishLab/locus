@@ -609,3 +609,18 @@ sessions expire with the earlier signed token. Restart invalidates all local
 sessions. POST /auth/logout from the same origin invalidates the session on
 the server. Each read uses the current Keel producer grant. A supplied Bearer
 selects machine authentication. Writes always require the machine credential.
+
+## Metrics browser
+
+The @perishlab/locus-web package ships the compiled static UI. Serve its
+dist directory on the browser origin with /api and /auth routed to the Locus
+Ensign listener. When installing the chart, set browser.client and
+browser.origin together to mount that listener's optional OIDC configuration.
+The HTTP proxy keeps browser paths same-origin and preserves the upstream
+status and cookie headers.
+
+The UI places only query parameters in share links, uses UTC nanoseconds on
+the wire, queries with the browser session, and resolves evidence by the
+authorized producer, exact source instant and immutable Atom id. It consumes
+the formal Design and Crest packages. Each included mark is verified against
+the pinned Crest manifest at build time.

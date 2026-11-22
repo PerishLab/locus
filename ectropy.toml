@@ -17,6 +17,14 @@ paths = [
 ]
 syntax = "environment"
 
+[[grant]]
+paths = ["packages/*/tests/**/*.test.ts"]
+syntax = "test"
+
+[[grant]]
+paths = ["packages/*/tests/**/*.test.ts"]
+syntax = "environment"
+
 [limit]
 block = 4
 fanout = 10
@@ -29,12 +37,18 @@ path = 3
 roots = [
     "crates/*/src",
     "crates/*/tests",
+    "packages/*/src",
+    "packages/*/tests",
 ]
 
 [scan]
-exclude = ["**/target/**"]
+exclude = ["**/target/**", "**/.svelte-kit/**", "**/dist/**", "**/node_modules/**"]
 include = [
     "crates/**/*.rs",
+    "packages/**/*.css",
+    "packages/**/*.scss",
+    "packages/**/*.svelte",
+    "packages/**/*.ts",
 ]
 
 [word]

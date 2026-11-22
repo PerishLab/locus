@@ -9,4 +9,9 @@ data:
     issuer = {{ required "issuer is required" .Values.issuer | toJson }}
     keys = "/etc/locus/jwks.json"
     listen = "0.0.0.0:8080"
+    {{- with .Values.browser }}
+    [ensign.browser]
+    client = {{ required "browser.client is required" .client | toJson }}
+    origin = {{ required "browser.origin is required" .origin | toJson }}
+    {{- end }}
   jwks.json: {{ required "trusted public jwks is required" .Values.jwks | toJson | quote }}
