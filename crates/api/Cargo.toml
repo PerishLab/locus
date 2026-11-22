@@ -19,6 +19,7 @@ clap = { workspace = true }
 keel = { workspace = true }
 keel-column = { workspace = true }
 locus = { version = "0", registry = "perish" }
+locus-derivation = { workspace = true, features = ["utoipa"] }
 plumb = { workspace = true }
 pollster = { workspace = true }
 serde = { workspace = true }

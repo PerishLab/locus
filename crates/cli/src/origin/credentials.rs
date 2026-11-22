@@ -22,7 +22,7 @@ pub(crate) struct Credentials {
 }
 
 impl Credentials {
-    pub(super) fn resolve(&self, target: &Url) -> Result<Option<String>, String> {
+    pub(crate) fn resolve(&self, target: &Url) -> Result<Option<String>, String> {
         let configured = value("LOCUS_API");
         let local = loopback(target);
         let default = configured.as_deref().unwrap_or("http://127.0.0.1:43308");

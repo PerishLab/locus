@@ -2,6 +2,7 @@ pub use locus;
 mod derive;
 pub use inspect::evidence;
 pub mod inspect;
+pub use derive::metric;
 pub mod quality;
 pub mod query;
 pub use derive::span;

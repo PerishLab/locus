@@ -1,6 +1,7 @@
 mod analysis;
 use input::delivery;
 mod input;
+use origin::metric;
 mod observation;
 mod origin;
 mod quality;
@@ -27,6 +28,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    #[command(about = "Read authorized metric buckets with units and source evidence")]
+    Metric(metric::Args),
     #[command(about = "Send pending HTTPS Atom batches and exit")]
     Deliver {
         #[arg(
@@ -126,6 +129,7 @@ fn main() -> ExitCode {
 
 fn name(command: &Command) -> &'static str {
     match command {
+        Command::Metric(_) => "metric",
         Command::Deliver { .. } => "deliver",
         Command::Quality { .. } => "quality",
         Command::Adapt { .. } => "adapt",
@@ -140,6 +144,7 @@ fn name(command: &Command) -> &'static str {
 #[locus::trace(with = plumb::observation::view())]
 fn execute(command: Command) -> ExitCode {
     match command {
+        Command::Metric(args) => metric::execute(args),
         Command::Deliver { buffer } => delivery::run(&buffer),
         Command::Quality { args } => quality::run(args),
         Command::Adapt { args } => input::adapt::run(args),
