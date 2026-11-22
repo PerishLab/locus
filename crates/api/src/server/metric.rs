@@ -18,7 +18,7 @@ pub(super) async fn read(
     headers: HeaderMap,
     Query(query): Query<Selection>,
 ) -> Result<Json<Report>, StatusCode> {
-    let who = gate.actor(&headers).await?;
+    let who = gate.reader(&headers).await?;
     let producer = Producer::new(&query.producer).map_err(|_| StatusCode::BAD_REQUEST)?;
     let filter = Filter {
         window: Window {

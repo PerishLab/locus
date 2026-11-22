@@ -1,6 +1,7 @@
 pub(crate) mod identity;
 mod ingress;
 mod metric;
+mod session;
 use crate::access::Readers;
 use crate::registry::Registry;
 use crate::retention::{self, Retention};

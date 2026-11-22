@@ -18,23 +18,48 @@ use tokio_stream::wrappers::ReceiverStream;
 #[derive(Clone)]
 pub(super) struct Gate {
     authority: Arc<Authority>,
+    sessions: Option<super::session::Sessions>,
     pub(super) columns: Arc<Columns>,
     retention: Retention,
 }
 
 pub fn edge(columns: Arc<Columns>, authority: Authority, retention: Retention) -> Router {
+    let authority = Arc::new(authority);
+    let sessions = authority
+        .browser
+        .clone()
+        .map(|config| super::session::Sessions::new(config, authority.clone()));
+    let browser = sessions.as_ref().map(|s| s.routes()).unwrap_or_default();
     Router::new()
         .route("/health", get(health))
         .route("/api/v1/metrics", get(super::metric::read))
         .route("/api/v1/atoms", get(scan).post(append))
         .with_state(Gate {
-            authority: Arc::new(authority),
+            authority,
+            sessions,
             columns,
             retention,
         })
+        .merge(browser)
+        .layer(axum::middleware::map_response(
+            |mut response: Response| async move {
+                response
+                    .headers_mut()
+                    .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+                response
+            },
+        ))
 }
 
 impl Gate {
+    pub(super) async fn reader(&self, headers: &HeaderMap) -> Result<i64, StatusCode> {
+        if headers.contains_key(header::AUTHORIZATION) {
+            return self.actor(headers).await;
+        }
+        let sessions = self.sessions.as_ref().ok_or(StatusCode::UNAUTHORIZED)?;
+        self.columns.operator(&sessions.owner(headers).await?).await
+    }
+
     pub(super) async fn actor(&self, headers: &HeaderMap) -> Result<i64, StatusCode> {
         let mut keys = headers.get_all(header::AUTHORIZATION).iter();
         let key = keys
@@ -96,7 +121,7 @@ async fn scan(
     Query(params): Query<Params>,
     headers: HeaderMap,
 ) -> Result<Response, StatusCode> {
-    let who = gate.actor(&headers).await?;
+    let who = gate.reader(&headers).await?;
     let filter = params.filter().map_err(|_| StatusCode::BAD_REQUEST)?;
     if filter.producer.is_none() {
         return Err(StatusCode::BAD_REQUEST);
