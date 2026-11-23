@@ -45,6 +45,12 @@ spec:
               mountPath: /data/locus-api.toml
               subPath: locus-api.toml
               readOnly: true
+            {{- if .Values.alerts }}
+            - name: config
+              mountPath: /data/alerts.json
+              subPath: alerts.json
+              readOnly: true
+            {{- end }}
             - name: config
               mountPath: /etc/locus
               readOnly: true

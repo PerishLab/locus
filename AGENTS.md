@@ -624,3 +624,32 @@ the wire, queries with the browser session, and resolves evidence by the
 authorized producer, exact source instant and immutable Atom id. It consumes
 the formal Design and Crest packages. Each included mark is verified against
 the pinned Crest manifest at build time.
+
+## Metric alerts
+
+Alerts are opt-in on the Ensign listener. Place an alerts.json document next
+to locus-api.toml, or set the Helm chart's alerts object. The document takes
+interval in seconds and origin as the bare Locus HTTPS origin. Optional
+delay in seconds waits for delayed source delivery before evaluating a closed window. An HTTP
+loopback IP is available to isolated trials. Each rules item declares name,
+revision, subject, producer, metric, unit, kind, above and hold. Above is a
+strict threshold in the metric's unit. Hold is measured in seconds of fresh
+observations. Mute is an optional UTC nanosecond deadline. Recipients specify
+their subject and their HTTPS endpoint or HTTP loopback test endpoint.
+
+The evaluator uses the same bounded metric reducer with its own producer
+scan grant. Each recipient needs a current scan grant on that producer at
+delivery. Notice links use only metric query parameters and each open checks
+the reader's grant. The webhook receives a stable Idempotency-Key and must
+treat repeats of that key as the same notice. Connection failures and
+non-2xx responses retry with bounded exponential delay. The queue preserves
+pending items and bounds terminal history. Locus refuses a second evaluator
+on the same home.
+
+Use locus-api alerts --home to inspect the current rule revision, last
+evaluation, latest source evidence, delivery attempts, and backlog. Two
+missed intervals expose an evaluator stop. Absence and conflict invalidate
+continuity. Recovery requires a later observed value below or equal to the
+threshold. Restart retains the journal and finishes pending notices. Change
+a rule's query, threshold, hold, identity, recipient definition, interval, or delay
+with a new revision. Mute changes keep the same revision.
