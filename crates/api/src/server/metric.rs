@@ -1,9 +1,11 @@
 use super::ingress::{Gate, status};
+use crate::column::Columns;
 use crate::store::{Filter, Producer, Window};
 use axum::Json;
 use axum::extract::{Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use locus_derivation::metric::{Metric, Query as Selection, Report};
+use std::sync::Arc;
 
 #[utoipa::path(get, path = "/api/v1/metrics", params(Selection), responses(
     (status = 200, body = Report, description = "Source-authorized gauge means or counter increases with immutable evidence"),
@@ -19,6 +21,14 @@ pub(super) async fn read(
     Query(query): Query<Selection>,
 ) -> Result<Json<Report>, StatusCode> {
     let who = gate.reader(&headers).await?;
+    evaluate(gate.columns, who, query).await.map(Json)
+}
+
+pub(super) async fn evaluate(
+    columns: Arc<Columns>,
+    who: i64,
+    query: Selection,
+) -> Result<Report, StatusCode> {
     let producer = Producer::new(&query.producer).map_err(|_| StatusCode::BAD_REQUEST)?;
     let filter = Filter {
         window: Window {
@@ -31,14 +41,14 @@ pub(super) async fn read(
     let mut metric = Metric::new(query).map_err(|_| StatusCode::BAD_REQUEST)?;
     tokio::task::spawn_blocking(move || {
         let mut invalid = false;
-        let result = pollster::block_on(gate.columns.scan(who, &filter, &mut |raw| {
+        let result = pollster::block_on(columns.scan(who, &filter, &mut |raw| {
             metric.observe(raw).inspect_err(|_| invalid = true)
         }));
         if invalid {
             return Err(StatusCode::UNPROCESSABLE_ENTITY);
         }
         result.map_err(status)?;
-        Ok(Json(metric.finish()))
+        Ok(metric.finish())
     })
     .await
     .map_err(|_| StatusCode::SERVICE_UNAVAILABLE)?

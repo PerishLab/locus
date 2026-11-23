@@ -14,7 +14,8 @@ path = "src/entry/main.rs"
 [dependencies]
 radicula-oidc.workspace = true
 getrandom.workspace = true
-url.workspace = true
+url = { workspace = true, features = ["serde"] }
+radicula-lock.workspace = true
 radicula-config = { workspace = true }
 axum = { workspace = true }
 clap = { workspace = true }
@@ -32,3 +33,6 @@ tokio-stream = { workspace = true }
 ureq = { workspace = true, features = ["json"] }
 utoipa = { workspace = true }
 
+
+[dev-dependencies]
+tempfile.workspace = true

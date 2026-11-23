@@ -15,3 +15,6 @@ data:
     origin = {{ required "browser.origin is required" .origin | toJson }}
     {{- end }}
   jwks.json: {{ required "trusted public jwks is required" .Values.jwks | toJson | quote }}
+  {{- with .Values.alerts }}
+  alerts.json: {{ . | toJson | quote }}
+  {{- end }}

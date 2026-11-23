@@ -36,6 +36,11 @@ enum Command {
     Openapi,
     #[command(about = "Check the binary, home and live service read-only and print a JSON report")]
     Doctor(Doctor),
+    #[command(about = "Read the local alert evaluator and delivery state")]
+    Alerts {
+        #[arg(long)]
+        home: Option<PathBuf>,
+    },
 }
 
 #[derive(Args)]
@@ -81,6 +86,7 @@ fn main() -> ExitCode {
         return ExitCode::from(1);
     }
     match Cli::parse().command {
+        Command::Alerts { home } => alert(home),
         Command::Serve(serve) => match run(serve) {
             Ok(()) => ExitCode::SUCCESS,
             Err(error) => {
@@ -103,6 +109,23 @@ fn main() -> ExitCode {
                 observer.finish(0);
             }
             ExitCode::SUCCESS
+        }
+    }
+}
+
+fn alert(home: Option<PathBuf>) -> ExitCode {
+    let result = home
+        .or_else(|| plumb::config::data("locus"))
+        .ok_or_else(|| "no alert home".to_owned())
+        .and_then(|path| server::alert::status(&path));
+    match result {
+        Ok(value) => {
+            println!("{value}");
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("locus-api: {error}");
+            ExitCode::from(2)
         }
     }
 }
@@ -141,6 +164,7 @@ fn run(serve: Serve) -> Result<(), String> {
     let columns = Arc::new(columns);
     let store: Arc<dyn Store> = columns.clone();
     let edge = server::Authority::load(&home)?;
+    let alerts = server::alert::Alerts::open(&home, edge.as_ref().map(|(_, authority)| authority))?;
     let observer = observation::Watch::start(home.join("state/locus-api"));
     let legacy = home.join("store");
     if legacy.is_dir() {
@@ -163,6 +187,9 @@ fn run(serve: Serve) -> Result<(), String> {
         }
     });
     runtime.block_on(async move {
+        if let Some(alerts) = alerts {
+            alerts.spawn(columns.clone());
+        }
         let listener = tokio::net::TcpListener::bind(serve.listen)
             .await
             .map_err(|error| format!("cannot listen on {}: {error}", serve.listen))?;

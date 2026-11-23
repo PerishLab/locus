@@ -1,3 +1,4 @@
+pub mod alert;
 pub(crate) mod identity;
 mod ingress;
 mod metric;
