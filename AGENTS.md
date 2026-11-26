@@ -362,9 +362,12 @@ and engine diagnostic handoff.
   withdraws that exact grant. Remote callers never receive the holder face.
   Posting application/x-ndjson requires a stable Idempotency-Key, complete
   LF-terminated lines and an explicit producer and record id on every Atom.
-  The complete batch must match NAME. Status 204 acknowledges completed column
-  persistence. A lost reply is retried with the original contents and label
-  within the column store's existing replay window.
+  The complete batch must match NAME. Optional `Content-Encoding: gzip` is
+  accepted alongside absent/`identity` bodies: compressed payloads are capped
+  at 256 KiB and decompressed payloads at 1 MiB (`413` if exceeded, `400` on
+  corrupt gzip, `415` on unsupported encodings). Status 204 acknowledges
+  completed column persistence. A lost reply is retried with the original
+  contents and label within the column store's existing replay window.
 
 - `locus-api` observes itself through Locus, never through tracing
   subscribers. The `[locus] enabled` switch in `config.toml` under the
@@ -438,8 +441,9 @@ configuration file and hands the result to `Policy`.
 
 ## Layout
 
-- `crates/locus` is the engine and public substrate.
+- `crates/locus` is the engine and public substrate, including `locus::relay` for durable HTTPS delivery of pre-built Atom lines.
 - `crates/macro` is the source adapter and shares the exact release version.
+- `crates/relay` is the `locus-relay` shared Axum relay crate for same-origin browser/frontend Atom batches.
 - `crates/derivation` is the derivation library over an ordered Atom sequence.
 - `crates/cli` is the `locus` command: it reads the read API, decodes JSONL and renders `crates/derivation` reports. Its explicit `adapt` entrance accepts external observations through protocol adapters and the existing Engine/reporter, separately from CLI self-observation.
 - `crates/api` is the `locus-api` server: drain, column store and migration, registry, retention, and the read API.
@@ -521,9 +525,9 @@ owns this adapter boundary and its source/stable/installed qualification.
 
 ## Release
 
-- wharf publishes `locus-macro`, `locus`, `locus-derivation`, and `locus-cli`
-  to the `perish` registry at `cargo.perish.uk`; the `locus` command reaches
-  an operator through `locus-cli`. Locus declares no skill.
+- wharf publishes `locus-macro`, `locus`, `locus-relay`, `locus-derivation`,
+  and `locus-cli` to the `perish` registry at `cargo.perish.uk`; the `locus`
+  command reaches an operator through `locus-cli`. Locus declares no skill.
 - `locus-api` is the one declared binary, built for `x86_64-unknown-linux-gnu`
   with `install = false`, and ships as the Debian placement in
   `packaging/deb` (`linux-x64-deb` in the seal; wharf keeps no apt
@@ -664,3 +668,38 @@ continuity. Recovery requires a later observed value below or equal to the
 threshold. Restart retains the journal and finishes pending notices. Change
 a rule's query, threshold, hold, identity, recipient definition, interval, or delay
 with a new revision. Mute changes keep the same revision.
+
+## Browser relay
+
+Product APIs mount `locus-relay` (`crates/relay`) at `/api/observe` via
+`locus_relay::router(relay)` to accept browser/frontend Atom batches and forward
+them through `locus::relay::Relay` (reusing the durable SQLite WAL journal,
+batching, idempotency key, and HTTPS delivery worker without duplicating spool
+or retry logic). Every incoming `POST` passes five gates in order:
+
+1. **Same-Origin**: if `Sec-Fetch-Site` is present it must equal `same-origin`
+   (case-insensitive); when `origins` is configured, `Origin` must match one
+   canonical configured `scheme://host[:port]` entry (`403` otherwise).
+2. **Bounded Token-Bucket Rate Limiter**: keyed by `ConnectInfo` peer IP
+   (falling back to `"default"`) by default; when `forwarded = true` is opted
+   in behind a trusted reverse proxy, reads a valid `IpAddr` from `X-Real-IP`
+   or the rightmost `X-Forwarded-For` entry before falling back to peer IP.
+   Bounded to at most 4096 keys with stale/oldest eviction, refilling at `rpm`
+   (default 120) with `burst` capacity (default 30); exhausted callers receive
+   `429` with `Retry-After`.
+3. **Body Size & Optional Gzip**: runs only after Gates 1 and 2 using bounded
+   streaming body reads (`256 KiB` plain/`identity`; `128 KiB` compressed and
+   `256 KiB` decompressed for `Content-Encoding: gzip` via `MultiGzDecoder`,
+   returning `413` on oversize, `400` on invalid/trailing gzip, `415` on other
+   encodings).
+4. **Strict NDJSON & Sensitive-Key Blocker**: UTF-8 NDJSON with 1..=512
+   single-line `locus::Atom` records (`400` on empty/malformed/mismatch, `413`
+   over 512 lines); rejects unknown top-level JSON fields, requires the
+   configured `producer` and nonempty `id`, and blocks any key, `choices`
+   role/key, `collections` role, or delimiter/camelCase segment matching
+   `password`, `pass`, `token`, `secret`, `authorization`, `cookie`,
+   `verifier`, `rescue`, `sudo`, or `code_verifier`.
+5. **Durable Enqueue**: validated lines commit to the local WAL queue and wake
+   asynchronous upstream delivery (with startup drain of preexisting rows and
+   bounded exponential retry backoff `1s`..`30s` on transient failures),
+   returning `204` on durable append (`503` on queue failure).

@@ -1,4 +1,4 @@
-use rusqlite::{Connection, OpenFlags};
+use rusqlite::{Connection, OpenFlags, TransactionBehavior};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
@@ -68,6 +68,38 @@ impl Journal {
             .execute("INSERT INTO records(body) VALUES (?1)", [body])
             .map_err(message)?;
         Ok(())
+    }
+
+    pub(in crate::reporter) fn extend(&self, records: &[Vec<u8>]) -> Result<(), String> {
+        if records.is_empty() {
+            return Ok(());
+        }
+        let mut held = self.db.lock().map_err(|_| "HTTPS journal lock failed")?;
+        if held.is_none() {
+            *held = Some(Self::connect(&self.dir)?);
+        }
+        let db = held.as_mut().ok_or("HTTPS journal closed")?;
+        let tx = db
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(message)?;
+        for body in records {
+            tx.execute("INSERT INTO records(body) VALUES (?1)", [body.as_slice()])
+                .map_err(message)?;
+        }
+        tx.commit().map_err(message)
+    }
+
+    pub(in crate::reporter) fn pending(&self) -> Result<bool, String> {
+        let mut held = self.db.lock().map_err(|_| "HTTPS journal lock failed")?;
+        if held.is_none() {
+            *held = Some(Self::connect(&self.dir)?);
+        }
+        held.as_ref()
+            .ok_or("HTTPS journal closed")?
+            .query_row("SELECT EXISTS(SELECT 1 FROM records)", [], |row| {
+                row.get::<_, bool>(0)
+            })
+            .map_err(message)
     }
 
     pub(in crate::reporter) fn seal(&self) -> Result<(), String> {

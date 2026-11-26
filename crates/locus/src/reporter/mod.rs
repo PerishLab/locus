@@ -2,6 +2,7 @@ mod api;
 pub mod delivery;
 mod https;
 mod launcher;
+pub mod relay;
 pub mod spool;
 mod worker;
 

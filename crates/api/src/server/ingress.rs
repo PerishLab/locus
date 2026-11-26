@@ -9,11 +9,17 @@ use axum::extract::{Query, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
+use flate2::read::MultiGzDecoder;
 use locus::Atom;
 use serde::Deserialize;
-use std::{io, sync::Arc};
+use std::borrow::Cow;
+use std::io::{self, Read};
+use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
+
+const COMPRESSED: usize = 256 * 1024;
+const EXPANDED: usize = 1024 * 1024;
 
 #[derive(Clone)]
 pub(super) struct Gate {
@@ -86,7 +92,29 @@ struct Source {
     producer: String,
 }
 
-#[utoipa::path(post,path="/api/v1/atoms", params(Source,("Idempotency-Key" = String,Header,description="Stable label for this batch")),request_body(content=String,content_type="application/x-ndjson",description="Complete Atom lines for the named producer"),responses((status=204,description="Accepted by the column store on the machine listener"),(status=400,description="Invalid Atom batch"),(status=401,description="Machine credential rejected"),(status=403,description="Source grant refused"),(status=503,description="Authorization or storage unavailable")))]
+#[utoipa::path(
+    post,
+    path = "/api/v1/atoms",
+    params(
+        Source,
+        ("Idempotency-Key" = String, Header, description = "Stable label for this batch"),
+        ("Content-Encoding" = Option<String>, Header, description = "Optional payload encoding: identity or gzip")
+    ),
+    request_body(
+        content = String,
+        content_type = "application/x-ndjson",
+        description = "Complete Atom lines for the named producer"
+    ),
+    responses(
+        (status = 204, description = "Accepted by the column store on the machine listener"),
+        (status = 400, description = "Invalid Atom batch or corrupt gzip stream"),
+        (status = 401, description = "Machine credential rejected"),
+        (status = 403, description = "Source grant refused"),
+        (status = 413, description = "Batch exceeds compressed or decompressed size limit"),
+        (status = 415, description = "Unsupported Content-Encoding"),
+        (status = 503, description = "Authorization or storage unavailable")
+    )
+)]
 async fn append(
     State(gate): State<Gate>,
     Query(source): Query<Source>,
@@ -100,7 +128,8 @@ async fn append(
         .and_then(|v| v.to_str().ok())
         .filter(|v| !v.trim().is_empty())
         .ok_or(StatusCode::BAD_REQUEST)?;
-    let data = body.strip_suffix(b"\n").ok_or(StatusCode::BAD_REQUEST)?;
+    let raw = decode(&headers, &body)?;
+    let data = raw.strip_suffix(b"\n").ok_or(StatusCode::BAD_REQUEST)?;
     let mut records = Vec::new();
     for line in data.split(|c| *c == b'\n') {
         let atom: Atom = serde_json::from_slice(line).map_err(|_| StatusCode::BAD_REQUEST)?;
@@ -114,6 +143,41 @@ async fn append(
         .await
         .map_err(status)?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+fn decode<'a>(headers: &HeaderMap, body: &'a [u8]) -> Result<Cow<'a, [u8]>, StatusCode> {
+    let mut encodings = headers.get_all(header::CONTENT_ENCODING).iter();
+    let Some(value) = encodings.next() else {
+        return Ok(Cow::Borrowed(body));
+    };
+    if encodings.next().is_some() {
+        return Err(StatusCode::UNSUPPORTED_MEDIA_TYPE);
+    }
+    let name = value
+        .to_str()
+        .map_err(|_| StatusCode::UNSUPPORTED_MEDIA_TYPE)?
+        .trim()
+        .to_ascii_lowercase();
+    match name.as_str() {
+        "identity" => Ok(Cow::Borrowed(body)),
+        "gzip" => inflate(body).map(Cow::Owned),
+        _ => Err(StatusCode::UNSUPPORTED_MEDIA_TYPE),
+    }
+}
+
+fn inflate(body: &[u8]) -> Result<Vec<u8>, StatusCode> {
+    if body.len() > COMPRESSED {
+        return Err(StatusCode::PAYLOAD_TOO_LARGE);
+    }
+    let mut reader = MultiGzDecoder::new(body).take(EXPANDED as u64 + 1);
+    let mut output = Vec::new();
+    reader
+        .read_to_end(&mut output)
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    if output.len() > EXPANDED {
+        return Err(StatusCode::PAYLOAD_TOO_LARGE);
+    }
+    Ok(output)
 }
 
 async fn scan(

@@ -1,14 +1,21 @@
-use super::{delivery, launcher};
+use super::delivery::{self, Route};
+use super::launcher;
 use std::path::PathBuf;
-use std::sync::mpsc::{Receiver, TryRecvError, channel};
+use std::sync::mpsc::{Receiver, Sender, TryRecvError, channel};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 pub(super) struct Worker(Arc<Pump>);
 
+enum Mode {
+    Local,
+    Helper(PathBuf),
+    Direct(Route),
+}
+
 struct Pump {
     directory: PathBuf,
-    sender: Option<PathBuf>,
+    mode: Mode,
     state: Mutex<State>,
 }
 
@@ -16,14 +23,27 @@ struct Pump {
 struct State {
     dirty: bool,
     scheduled: bool,
+    backoff: u64,
     result: Option<Receiver<()>>,
 }
 
 impl Worker {
     pub(super) fn new(directory: PathBuf, sender: Option<PathBuf>) -> Self {
+        let mode = match sender {
+            Some(path) => Mode::Helper(path),
+            None => Mode::Local,
+        };
         Self(Arc::new(Pump {
             directory,
-            sender,
+            mode,
+            state: Mutex::default(),
+        }))
+    }
+
+    pub(super) fn direct(directory: PathBuf, route: Route) -> Self {
+        Self(Arc::new(Pump {
+            directory,
+            mode: Mode::Direct(route),
             state: Mutex::default(),
         }))
     }
@@ -33,7 +53,7 @@ impl Worker {
             return;
         };
         state.dirty = true;
-        self.0.schedule(&mut state);
+        self.0.schedule(&mut state, Duration::from_millis(250));
     }
 
     pub(super) fn finish(&self) -> Result<(), String> {
@@ -48,7 +68,7 @@ impl Worker {
             }
             state.result.take()
         };
-        if self.0.sender.is_none()
+        if !matches!(self.0.mode, Mode::Helper(_))
             && let Some(result) = result
         {
             let _ = result.recv_timeout(Duration::from_millis(300));
@@ -58,7 +78,7 @@ impl Worker {
 }
 
 impl Pump {
-    fn schedule(self: &Arc<Self>, state: &mut State) {
+    fn schedule(self: &Arc<Self>, state: &mut State, delay: Duration) {
         if state.scheduled {
             return;
         }
@@ -66,7 +86,7 @@ impl Pump {
         state.scheduled = std::thread::Builder::new()
             .name("locus-wake".into())
             .spawn(move || {
-                std::thread::sleep(Duration::from_millis(250));
+                std::thread::sleep(delay);
                 if let Some(pump) = this.upgrade() {
                     pump.wake();
                 }
@@ -87,29 +107,82 @@ impl Pump {
             .as_ref()
             .is_some_and(|done| done.try_recv() == Err(TryRecvError::Empty))
         {
-            self.schedule(&mut state);
+            self.schedule(&mut state, Duration::from_millis(250));
         } else {
             let _ = self.launch(&mut state);
         }
     }
 
-    fn launch(&self, state: &mut State) -> Result<(), String> {
+    fn settled(self: &Arc<Self>, outcome: Result<bool, String>) {
+        let Ok(mut state) = self.state.lock() else {
+            return;
+        };
+        state.result = None;
+        match outcome {
+            Ok(false) => {
+                state.backoff = 0;
+                if state.dirty {
+                    self.schedule(&mut state, Duration::from_millis(250));
+                }
+            }
+            Ok(true) => {
+                state.backoff = 0;
+                state.dirty = true;
+                self.schedule(&mut state, Duration::from_millis(10));
+            }
+            Err(_) => {
+                let delay = if state.backoff == 0 {
+                    1
+                } else {
+                    (state.backoff * 2).min(30)
+                };
+                state.backoff = delay;
+                state.dirty = true;
+                self.schedule(&mut state, Duration::from_secs(delay));
+            }
+        }
+    }
+
+    fn launch(self: &Arc<Self>, state: &mut State) -> Result<(), String> {
         let (done, result) = channel();
-        if let Some(path) = &self.sender {
-            launcher::spawn(path, &self.directory, done)
-                .map_err(|_| "cannot start configured HTTPS sender")?;
-        } else {
-            let path = self.directory.clone();
-            std::thread::Builder::new()
-                .name("locus-delivery".into())
-                .spawn(move || {
-                    let _ = delivery::send(&path);
-                    let _ = done.send(());
-                })
-                .map_err(|_| "cannot start in-process HTTPS sender")?;
+        match &self.mode {
+            Mode::Helper(path) => {
+                launcher::spawn(path, &self.directory, done)
+                    .map_err(|_| "cannot start configured HTTPS sender")?;
+            }
+            Mode::Local => {
+                let path = self.directory.clone();
+                std::thread::Builder::new()
+                    .name("locus-delivery".into())
+                    .spawn(move || {
+                        let _ = delivery::send(&path);
+                        let _ = done.send(());
+                    })
+                    .map_err(|_| "cannot start in-process HTTPS sender")?;
+            }
+            Mode::Direct(route) => {
+                self.forward(route, done)?;
+            }
         }
         state.dirty = false;
         state.result = Some(result);
+        Ok(())
+    }
+
+    fn forward(self: &Arc<Self>, route: &Route, done: Sender<()>) -> Result<(), String> {
+        let path = self.directory.clone();
+        let route = route.clone();
+        let this = Arc::downgrade(self);
+        std::thread::Builder::new()
+            .name("locus-delivery".into())
+            .spawn(move || {
+                let outcome = delivery::push(&path, &route);
+                let _ = done.send(());
+                if let Some(pump) = this.upgrade() {
+                    pump.settled(outcome);
+                }
+            })
+            .map_err(|_| "cannot start in-process HTTPS sender")?;
         Ok(())
     }
 }

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/api", "crates/cli", "crates/derivation", "crates/locus", "crates/macro"]
+members = ["crates/api", "crates/cli", "crates/derivation", "crates/locus", "crates/macro", "crates/relay"]
 
 [workspace.package]
 version = "0.0.0"
@@ -13,11 +13,13 @@ radicula-oidc = { version = "0", registry = "perish" }
 radicula-config = { version = "0", registry = "perish" }
 axum = "0.8"
 clap = { version = "4", features = ["derive", "env"] }
+flate2 = "1"
 getrandom = "0.3"
 locus = { path = "crates/locus", version = "=0.0.0", registry = "perish" }
 locus-api = { path = "crates/api" }
 locus-derivation = { path = "crates/derivation", version = "=0.0.0", registry = "perish" }
 locus-macro = { path = "crates/macro", version = "=0.0.0", registry = "perish" }
+locus-relay = { path = "crates/relay", version = "=0.0.0", registry = "perish" }
 keel = { version = "0", registry = "perish" }
 keel-column = { version = "0", registry = "perish" }
 plumb = { version = "0", registry = "perish", features = ["observation"] }

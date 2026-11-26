@@ -15,6 +15,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::runtime::Runtime;
 
 mod adopt;
+mod ingress;
 
 const DAY: u64 = 86_400_000_000_000;
 const BASE: u64 = 20_000 * DAY;
