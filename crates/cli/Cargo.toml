@@ -17,6 +17,7 @@ getrandom = { workspace = true }
 locus = { version = "0", registry = "perish" }
 locus-derivation = { workspace = true }
 plumb = { workspace = true }
+radicula-config = { workspace = true }
 serde_json = { workspace = true }
 sha2 = { workspace = true }
 serde = { workspace = true }

@@ -4,7 +4,7 @@ mod mapping;
 mod model;
 
 use config::Analyzer;
-pub use config::Config;
+pub use config::{Config, File};
 use locus::Atom;
 use mapping::{State, Unmeasured};
 use model::Summary;

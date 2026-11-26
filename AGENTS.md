@@ -190,11 +190,14 @@ and engine diagnostic handoff.
   `trace.size`, `trace.prefix`, `trace.held`, `span.size`, `span.prefix` and
   `span.held`, each with a coarse threshold that only an unambiguous excess
   crosses. What to inspect is Locus's; how strictly is the product's.
-- CLI inspection reads an optional root `locus.toml` and consumes that stream.
-  A product redeclares a default analyzer with the same mapping to set its
-  threshold, lists it under `disable` to turn it off, and declares new
-  analyzers after the defaults; a redeclaration with another mapping, or one
-  that is also disabled, refuses. Without the file the defaults run as they
+- CLI inspection and analysis read an optional `[locus]` section from root
+  `plumb.toml` or a transitional legacy root `locus.toml` and consume that
+  stream. If both `plumb.toml` `[locus]` and `locus.toml` exist, reading refuses
+  fail-closed without partial output. A product redeclares a default analyzer
+  with the same mapping to set its threshold, lists it under `disable` to turn
+  it off, and declares new analyzers after the defaults; a redeclaration with
+  another mapping, or one that is also disabled, refuses. When neither
+  `plumb.toml` `[locus]` nor `locus.toml` is present, the defaults run as they
   are. The summary names each default's origin. It emits only
   domain-independent structural findings and an explicit coverage summary.
   Malformed declaration or input refuses without partial output. It never

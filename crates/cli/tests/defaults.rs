@@ -139,3 +139,44 @@ fn absent() {
             .contains("not a directory")
     );
 }
+
+#[test]
+fn manifest() {
+    let root = Root::new(None);
+    let config = r#"
+[identity]
+ns = "demo"
+
+[locus]
+version = 1
+disable = ["span.prefix"]
+
+[[locus.analyzer]]
+id = "span.held"
+mapping = { kind = "held-time-nanoseconds", group = "locus.span" }
+threshold = { above = 10000000000 }
+"#;
+    std::fs::write(root.path().join("plumb.toml"), config).unwrap();
+    let input = [
+        framed(0, "slow", "enter"),
+        framed(6 * SECOND, "slow", "return"),
+    ]
+    .join("\n");
+    let output = run(&root, &input);
+    assert_eq!(output.status.code(), Some(0));
+    let records = records(&output);
+    assert_eq!(records[0]["defaults"]["span.held"], "overridden");
+    assert_eq!(records[0]["defaults"]["span.prefix"], "disabled");
+}
+
+#[test]
+fn conflict() {
+    let root = Root::new(Some("version = 1\n"));
+    std::fs::write(root.path().join("plumb.toml"), "[locus]\nversion = 1\n").unwrap();
+    let output = run(&root, "");
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("plumb.toml [locus]"));
+    assert!(stderr.contains("locus.toml"));
+}
