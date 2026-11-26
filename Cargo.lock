@@ -1456,12 +1456,12 @@ dependencies = [
 
 [[package]]
 name = "locus"
-version = "0.27.0"
+version = "0.28.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "193542d4cfa2468eb5b63a8487c21c3535824e0f2db62d725a92601b249d45c5"
+checksum = "5aa65ef22fac6f36cb96c33d13b4567504f157150877c36cda4dbf2774573c87"
 dependencies = [
  "getrandom 0.3.4",
- "locus-macro 0.27.0",
+ "locus-macro 0.28.0",
  "radicula-lock",
  "rusqlite",
  "rustix",
@@ -1482,7 +1482,7 @@ dependencies = [
  "getrandom 0.3.4",
  "keel",
  "keel-column",
- "locus 0.27.0",
+ "locus 0.28.0",
  "locus-derivation",
  "plumb",
  "pollster",
@@ -1506,7 +1506,7 @@ version = "0.0.0"
 dependencies = [
  "clap",
  "getrandom 0.3.4",
- "locus 0.27.0",
+ "locus 0.28.0",
  "locus-api",
  "locus-derivation",
  "plumb",
@@ -1545,9 +1545,9 @@ dependencies = [
 
 [[package]]
 name = "locus-macro"
-version = "0.27.0"
+version = "0.28.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "003fe2dc32640cfef2f776cb838649b2c078900e1af0721053b53888f8026bee"
+checksum = "86dadfeb46790ec638c8a8e75feb23242f2547c7450948da50a30a742db173ba"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1866,7 +1866,7 @@ dependencies = [
  "base64 0.22.1",
  "clap",
  "dunce",
- "locus 0.27.0",
+ "locus 0.28.0",
  "object",
  "plumb-macro",
  "radicula-config",
