@@ -232,3 +232,46 @@ fn unregistered() {
     listener.set_nonblocking(true).unwrap();
     assert!(listener.accept().is_err());
 }
+
+#[test]
+fn rolling() {
+    let n = Nest::new();
+    n.configure("[locus]\nenabled = true\nserve_buffer_mib = 2\n");
+    let buffer = n.seat().join("state/locus-api");
+    std::fs::create_dir_all(&buffer).unwrap();
+    let limit = 2 * 1024 * 1024;
+    let oldest = buffer.join("sealed-00000000000000000001.jsonl");
+    seed(&oldest, 1024 * 1024);
+    seed(
+        &buffer.join("sealed-00000000000000000002.jsonl"),
+        limit / 4 + 64,
+    );
+    seed(&buffer.join("active.jsonl"), limit / 4 - 64);
+    let ledger = buffer.join("loss.jsonl");
+    seed(&ledger, limit);
+    let serve = n.serve(port());
+    wait(|| !oldest.exists());
+    wait(|| {
+        records(&buffer)
+            .iter()
+            .filter(|atom| atom["payload"]["event"] == "api.drain")
+            .count()
+            >= 3
+    });
+    assert_eq!(serve.stored("locus"), 0);
+    let stderr = serve.stop();
+    let bytes: u64 = std::fs::read_dir(&buffer)
+        .unwrap()
+        .map(|entry| entry.unwrap().metadata().unwrap().len())
+        .sum();
+    assert!(bytes <= limit);
+    assert_eq!(std::fs::metadata(ledger).unwrap().len(), 0);
+    assert!(!stderr.contains("reporter."), "{stderr}");
+}
+
+fn seed(path: &Path, bytes: u64) {
+    let start = "{\"at\":1,\"context\":{},\"choices\":[],\"payload\":\"";
+    let end = "\"}\n";
+    let padding = "x".repeat(bytes as usize - start.len() - end.len());
+    std::fs::write(path, format!("{start}{padding}{end}")).unwrap();
+}

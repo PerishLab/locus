@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::parse::{Parse, ParseStream};
-use syn::{Expr, Ident, ItemFn, Token, parse_macro_input};
+use syn::{Expr, Ident, ItemFn, Path, Token, parse_macro_input};
 
 struct Record {
     engine: Expr,
@@ -52,6 +52,7 @@ pub fn record(input: TokenStream) -> TokenStream {
 struct Trace {
     observation: Expr,
     binding: Option<Ident>,
+    sdk: Path,
 }
 
 impl Parse for Trace {
@@ -63,29 +64,29 @@ impl Parse for Trace {
         input.parse::<Token![=]>()?;
         let observation = input.parse()?;
         let mut binding = None;
-        if input.peek(Token![,]) {
+        let mut sdk = None;
+        while !input.is_empty() {
             input.parse::<Token![,]>()?;
-        }
-        if !input.is_empty() {
+            if input.is_empty() {
+                break;
+            }
             let field: Ident = input.parse()?;
-            if field != "frame" {
+            input.parse::<Token![=]>()?;
+            if field == "frame" && binding.is_none() {
+                binding = Some(input.parse()?);
+            } else if field == "sdk" && sdk.is_none() {
+                sdk = Some(input.parse()?);
+            } else {
                 return Err(syn::Error::new(
                     field.span(),
-                    "trace accepts only `frame` after `with`",
+                    "expected an unused `frame` or `sdk`",
                 ));
             }
-            input.parse::<Token![=]>()?;
-            binding = Some(input.parse()?);
-            if input.peek(Token![,]) {
-                input.parse::<Token![,]>()?;
-            }
-        }
-        if !input.is_empty() {
-            return Err(input.error("trace accepts one `with` expression and one `frame` name"));
         }
         Ok(Self {
             observation,
             binding,
+            sdk: sdk.unwrap_or_else(|| syn::parse_quote!(::locus)),
         })
     }
 }
@@ -95,6 +96,7 @@ pub fn trace(args: TokenStream, input: TokenStream) -> TokenStream {
     let Trace {
         observation,
         binding,
+        sdk,
     } = parse_macro_input!(args as Trace);
     let mut function = parse_macro_input!(input as ItemFn);
     if let Some(token) = &function.sig.constness {
@@ -124,7 +126,7 @@ pub fn trace(args: TokenStream, input: TokenStream) -> TokenStream {
     let body = function.block;
     let expose = binding.map(|name| {
         quote! {
-            let #name: ::std::option::Option<::locus::Context> =
+            let #name: ::std::option::Option<#sdk::Context> =
                 frame.as_ref().map(|(_, context)| context.clone());
         }
     });
@@ -135,11 +137,11 @@ pub fn trace(args: TokenStream, input: TokenStream) -> TokenStream {
     };
     function.block = syn::parse_quote!({
         let frame = (#observation).and_then(|(engine, context)| {
-            let candidate = ::locus::Candidate::context()
-                .ensure(::locus::Role::trace())
-                .ensure(::locus::Role::span())
+            let candidate = #sdk::Candidate::context()
+                .ensure(#sdk::Role::trace())
+                .ensure(#sdk::Role::span())
                 .source(
-                    ::locus::Source::code(file!(), line!(), column!(), module_path!())
+                    #sdk::Source::code(file!(), line!(), column!(), module_path!())
                         .enter(#name),
                 );
             engine
@@ -152,11 +154,11 @@ pub fn trace(args: TokenStream, input: TokenStream) -> TokenStream {
             #invoke
         };
         if let Some((engine, context)) = frame {
-            let candidate = ::locus::Candidate::context()
-                .ensure(::locus::Role::trace())
-                .ensure(::locus::Role::span())
+            let candidate = #sdk::Candidate::context()
+                .ensure(#sdk::Role::trace())
+                .ensure(#sdk::Role::span())
                 .source(
-                    ::locus::Source::code(file!(), line!(), column!(), module_path!())
+                    #sdk::Source::code(file!(), line!(), column!(), module_path!())
                         .returned(#name),
                 );
             let _ = engine.append(&context, candidate);

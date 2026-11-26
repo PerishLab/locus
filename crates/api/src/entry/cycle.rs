@@ -1,8 +1,8 @@
 use crate::observation::{Watch, note};
-use locus::{Context, Engine};
 use locus_api::drain::Drain;
 use locus_api::retention::{self, Retention};
 use locus_api::store::Store;
+use locus_derivation::locus::{self, Context, Engine};
 use serde_json::{Value, json};
 use std::path::Path;
 use std::sync::Arc;
@@ -26,7 +26,7 @@ impl Cycle {
     }
 }
 
-#[locus::trace(with = observer.map(Watch::view), frame = frame)]
+#[locus::trace(with = observer.map(Watch::view), frame = frame, sdk = ::locus_derivation::locus)]
 pub(crate) fn migrate(
     observer: Option<&Watch>,
     legacy: &Path,
@@ -44,7 +44,7 @@ pub(crate) fn migrate(
     migrated
 }
 
-#[locus::trace(with = view, frame = frame)]
+#[locus::trace(with = view, frame = frame, sdk = ::locus_derivation::locus)]
 fn drain(view: View<'_>, drain: &Drain) {
     let fact = match drain.cycle() {
         Ok(tally) => json!({
@@ -60,7 +60,7 @@ fn drain(view: View<'_>, drain: &Drain) {
     note(view, frame.as_ref(), fact);
 }
 
-#[locus::trace(with = view, frame = frame)]
+#[locus::trace(with = view, frame = frame, sdk = ::locus_derivation::locus)]
 fn seal(view: View<'_>, store: &dyn Store, now: u64) {
     let fact = match store.tick(now) {
         Ok(()) => json!({"event": "api.seal", "outcome": "ok"}),
@@ -69,7 +69,7 @@ fn seal(view: View<'_>, store: &dyn Store, now: u64) {
     note(view, frame.as_ref(), fact);
 }
 
-#[locus::trace(with = view, frame = frame)]
+#[locus::trace(with = view, frame = frame, sdk = ::locus_derivation::locus)]
 fn retain(view: View<'_>, work: &Cycle, now: u64) {
     let mut fact = match work.retention.apply(work.store.as_ref(), now) {
         Ok(()) => json!({"event": "api.retention", "outcome": "ok"}),

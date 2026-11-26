@@ -1,11 +1,10 @@
-use locus::{Adaptor, Candidate, Config, Context, Engine, Hook, Observation, Policy, Role};
+use locus_derivation::locus::{self, Candidate, Config, Context, Engine, Policy, Role};
 use plumb::observation::{Declaration, Run};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::path::PathBuf;
-use std::sync::Arc;
 
-const UNREGISTERED: &str = "http://127.0.0.1:0";
+const BUFFER: u64 = 16;
 
 #[derive(Default, Deserialize)]
 struct File {
@@ -17,6 +16,8 @@ struct File {
 struct Settings {
     #[serde(default)]
     enabled: bool,
+    #[serde(rename = "serve_buffer_mib")]
+    buffer: Option<u64>,
 }
 
 pub(crate) fn start(command: &str) -> Option<Run> {
@@ -39,8 +40,8 @@ pub(crate) struct Watch {
 impl Watch {
     pub(crate) fn start(buffer: PathBuf) -> Option<Self> {
         let home = plumb::config::data("locus")?;
-        let built =
-            settings(&home).and_then(|settings| settings.map(|_| watch(buffer)).transpose());
+        let built = settings(&home)
+            .and_then(|settings| settings.map(|settings| watch(buffer, settings)).transpose());
         isolate(built)
     }
 
@@ -52,18 +53,6 @@ impl Watch {
 pub(crate) fn note(view: Option<(&Engine, &Context)>, frame: Option<&Context>, payload: Value) {
     if let (Some((engine, _)), Some(frame)) = (view, frame) {
         let _ = engine.append(frame, Candidate::event(payload));
-    }
-}
-
-struct Quiet;
-
-impl Hook for Quiet {
-    fn observe(&self, observation: &Observation) {
-        match observation {
-            Observation::Diagnostic(diagnostic) if diagnostic.code() == "reporter.registration" => {
-            }
-            observation => Adaptor.observe(observation),
-        }
     }
 }
 
@@ -94,15 +83,11 @@ fn settings(home: &std::path::Path) -> Result<Option<Settings>, String> {
     Ok(Some(file.locus).filter(|settings| settings.enabled))
 }
 
-fn watch(buffer: PathBuf) -> Result<Watch, String> {
-    let engine = Engine::bootstrap(
-        Config::new(
-            Policy::default()
-                .producer("locus")
-                .reporter(locus::reporter::Spec::api(UNREGISTERED, buffer)),
-        )
-        .hook(Arc::new(Quiet)),
-    )
+fn watch(buffer: PathBuf, settings: Settings) -> Result<Watch, String> {
+    let spec = locus::reporter::Spec::local(buffer, settings.buffer.unwrap_or(BUFFER));
+    let engine = Engine::bootstrap(Config::new(
+        Policy::default().producer("locus").reporter(spec),
+    ))
     .map_err(|error| error.to_string())?;
     let candidate = Candidate::event(json!({"event": "serve.start"})).explicit(
         Role::new("locus.command").map_err(|error| error.to_string())?,

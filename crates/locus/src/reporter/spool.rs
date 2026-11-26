@@ -1,13 +1,14 @@
 use super::Report;
 use crate::{Atom, Error};
 use radicula_lock::{Factory, Failure, Policy};
-use serde_json::json;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+pub mod local;
+mod loss;
 mod queue;
 mod seal;
 
@@ -29,6 +30,9 @@ pub fn segments(directory: &Path) -> io::Result<Vec<PathBuf>> {
 pub fn claim(directory: &Path) -> io::Result<Vec<PathBuf>> {
     if directory.join("delivery.json").try_exists()? {
         return Err(io::Error::other("HTTPS delivery owns this buffer"));
+    }
+    if local::marked(directory)? {
+        return Err(io::Error::other("local retention owns this buffer"));
     }
     seal::expired(directory, SystemTime::now())?;
     for path in listed(directory, SEALED)? {
@@ -83,6 +87,7 @@ pub(super) fn open(directory: &str, ceiling: u64, segment: u64) -> Result<Spool,
         ceiling,
         segment,
         age: None,
+        local: false,
         lock: Mutex::new(lock),
     })
 }
@@ -92,6 +97,7 @@ pub(super) struct Spool {
     ceiling: u64,
     segment: u64,
     age: Option<Duration>,
+    local: bool,
     lock: Mutex<radicula_lock::file::Gate>,
 }
 
@@ -100,6 +106,9 @@ impl Report for Spool {
         let mut record =
             serde_json::to_vec(atom).map_err(|error| format!("cannot encode Atom: {error}"))?;
         record.push(b'\n');
+        if self.local && record.len() as u64 > self.segment {
+            return Err("Atom exceeds the local segment size".into());
+        }
         self.with(|lock| self.append(lock, &record))
     }
 }
@@ -145,47 +154,29 @@ impl Spool {
         };
         let mut held = size;
         if size >= self.segment || stale {
-            fs::rename(self.root.0.join(ACTIVE), self.root.stamped())
-                .map_err(|error| format!("cannot seal spool segment: {error}"))?;
             sealed += size;
+            count(lock, sealed)?;
+            self.root.seal()?;
             held = 0;
         }
-        let mut loss = None;
         if held + sealed > self.ceiling {
-            sealed = self.root.total()?;
-            (loss, sealed) = self.shed(held, sealed)?;
+            return self.trim(lock, held);
         }
-        if known != Some(sealed) {
+        if known.is_none() && held != 0 {
             count(lock, sealed)?;
         }
-        Ok(loss)
+        Ok(None)
     }
 
-    fn shed(&self, held: u64, mut sealed: u64) -> Result<(Option<String>, u64), String> {
-        let (mut records, mut dropped) = (0_u64, 0_u64);
-        for path in segments(&self.root.0).map_err(|error| error.to_string())? {
-            if held + sealed <= self.ceiling {
-                break;
-            }
-            let Ok(bytes) = fs::read(&path) else {
-                continue;
-            };
-            let count = bytes.iter().filter(|byte| **byte == b'\n').count() as u64;
-            match fs::remove_file(&path) {
-                Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
-                removed => removed.map_err(|error| error.to_string())?,
-            }
-            sealed = sealed.saturating_sub(bytes.len() as u64);
-            self.root.ledger(&path, count, bytes.len() as u64)?;
-            records += count;
-            dropped += 1;
-        }
-        let loss = (records > 0).then(|| {
-            format!(
-                "spool over ceiling dropped {records} record(s) in {dropped} sealed segment(s); see {LEDGER}"
-            )
-        });
-        Ok((loss, sealed))
+    fn trim(&self, lock: &File, held: u64) -> Reported {
+        let sealed = self.root.total()?;
+        let (loss, sealed) = if self.local {
+            (None, self.retain(held, sealed)?)
+        } else {
+            self.shed(held, sealed)?
+        };
+        count(lock, sealed)?;
+        Ok(loss)
     }
 }
 
@@ -265,16 +256,9 @@ impl Root {
         }
     }
 
-    fn ledger(&self, path: &Path, records: u64, bytes: u64) -> Result<(), String> {
-        let segment = path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or_default();
-        let entry = json!({"at": now(), "segment": segment, "records": records, "bytes": bytes});
-        let mut file = self.open(LEDGER, true)?;
-        file.write_all(format!("{entry}\n").as_bytes())
-            .and_then(|_| file.flush())
-            .map_err(|error| format!("cannot record loss: {error}"))
+    fn seal(&self) -> Result<(), String> {
+        fs::rename(self.0.join(ACTIVE), self.stamped())
+            .map_err(|error| format!("cannot seal spool segment: {error}"))
     }
 }
 

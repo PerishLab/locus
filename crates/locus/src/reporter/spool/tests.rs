@@ -1,3 +1,5 @@
+#[path = "tests/rolling.rs"]
+mod rolling;
 #[path = "tests/scope.rs"]
 mod scope;
 
