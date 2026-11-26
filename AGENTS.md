@@ -88,7 +88,19 @@ and engine diagnostic handoff.
   product: a buffer that has registered before stays silent while the server is
   down, and one never registered reports `reporter.registration` to the hook.
 - For native machine ingress, declare `Spec::https(endpoint, key_file, path)`
-  with an HTTPS origin, absolute machine-key file and private absolute buffer.
+  with an HTTPS origin, absolute machine-key file and private absolute buffer
+  (mode `0700` owned by the current effective user). In containers and
+  Kubernetes, mount `emptyDir` or PVC volumes at a parent directory, point the
+  buffer to a dedicated subdirectory rather than the mount root, and set
+  `fsGroupChangePolicy: OnRootMismatch` alongside `fsGroup`. During producer
+  binding (`Spec::https` / `Relay::open`), if the buffer is a non-symlink
+  directory owned by the current effective UID and GID with no `other` bits
+  (such as `2770` left by kubelet `fsGroup` walks), Locus validates every known
+  spool file via `O_NOFOLLOW` + `fstat` and tightens the directory to `0700`
+  and regular spool files to `0600` before creating `spool.lock`. World-accessible
+  directories, symlinks, foreign ownership, and standalone `locus deliver` on
+  any non-`0700` buffer refuse fail-closed with path, mode, and ownership
+  diagnostics.
   Use one directory and one active sender queue per producer and destination.
   On first use the reporter binds that directory to the source, origin and key
   path. It refuses a change of binding or a legacy spool. Rotate credentials

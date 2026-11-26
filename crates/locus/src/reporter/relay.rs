@@ -84,8 +84,7 @@ impl Relay {
             "producer": config.producer,
             "endpoint": endpoint.origin().ascii_serialization()
         });
-        let spool = spool::open(directory, CEILING, 0)?;
-        spool.bind(&binding).map_err(Error::reporter)?;
+        let _spool = spool::bound(directory, CEILING, &binding)?;
         let journal = Journal::open(&config.buffer).map_err(Error::reporter)?;
         let route = Route {
             endpoint,

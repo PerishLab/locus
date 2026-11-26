@@ -73,3 +73,84 @@ fn helper() {
     fs::set_permissions(&parent, Permissions::from_mode(0o777)).unwrap();
     assert!(!boot(selected(&binary)));
 }
+
+#[cfg(unix)]
+#[test]
+fn privacy() {
+    use std::fs::{self, Permissions};
+    use std::os::unix::fs::{PermissionsExt, symlink};
+    let root = tempfile::tempdir().unwrap();
+    let key = root.path().join("key");
+    let queue = root.path().join("queue");
+    assert!(boot(Spec::https("https://localhost", &key, &queue)));
+    let entries = ["delivery.json", "queue.db", "spool.lock"];
+    fs::set_permissions(&queue, Permissions::from_mode(0o2770)).unwrap();
+    for name in entries {
+        fs::set_permissions(queue.join(name), Permissions::from_mode(0o660)).unwrap();
+    }
+    let error = locus::delivery::send(&queue).unwrap_err();
+    assert!(error.contains(&queue.display().to_string()));
+    assert!(error.contains("2770"));
+    assert_eq!(
+        fs::metadata(&queue).unwrap().permissions().mode() & 0o7777,
+        0o2770
+    );
+    assert!(boot(Spec::https("https://localhost", &key, &queue)));
+    assert_eq!(
+        fs::metadata(&queue).unwrap().permissions().mode() & 0o7777,
+        0o0700
+    );
+    for name in entries {
+        assert_eq!(
+            fs::metadata(queue.join(name)).unwrap().permissions().mode() & 0o7777,
+            0o0600
+        );
+    }
+
+    for mode in [0o0777, 0o0755] {
+        let dir = root.path().join(format!("open-{mode:o}"));
+        fs::create_dir(&dir).unwrap();
+        fs::set_permissions(&dir, Permissions::from_mode(mode)).unwrap();
+        let error = Engine::bootstrap(Config::new(
+            Policy::default().producer("sample").reporter(Spec::https(
+                "https://localhost",
+                &key,
+                &dir,
+            )),
+        ))
+        .err()
+        .unwrap()
+        .to_string();
+        assert!(error.contains(&dir.display().to_string()));
+        assert!(error.contains(&format!("{mode:04o}")));
+        assert!(!dir.join("spool.lock").exists());
+    }
+
+    let linked = root.path().join("linked");
+    symlink(&queue, &linked).unwrap();
+    assert!(!boot(Spec::https("https://localhost", &key, &linked)));
+
+    let poisoned = root.path().join("poisoned");
+    fs::create_dir(&poisoned).unwrap();
+    fs::set_permissions(&poisoned, Permissions::from_mode(0o2770)).unwrap();
+    symlink(root.path().join("target"), poisoned.join("delivery.json")).unwrap();
+    assert!(!boot(Spec::https("https://localhost", &key, &poisoned)));
+    assert_eq!(
+        fs::metadata(&poisoned).unwrap().permissions().mode() & 0o7777,
+        0o2770
+    );
+    assert!(!poisoned.join("spool.lock").exists());
+
+    let foreign = Engine::bootstrap(Config::new(
+        Policy::default().producer("sample").reporter(Spec::https(
+            "https://localhost",
+            &key,
+            Path::new("/tmp"),
+        )),
+    ))
+    .err()
+    .unwrap()
+    .to_string();
+    assert!(foreign.contains("/tmp"));
+    assert!(foreign.contains("owner 0:"));
+}

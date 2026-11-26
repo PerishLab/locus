@@ -6,11 +6,8 @@ use std::io;
 use std::path::Path;
 
 impl Spool {
-    pub(in crate::reporter) fn bind(&self, binding: &Value) -> Result<(), String> {
-        #[cfg(unix)]
-        if !crate::reporter::delivery::private(self.directory()).map_err(message)? {
-            return Err("HTTPS buffer directory must be private".into());
-        }
+    pub(super) fn bind(&self, binding: &Value) -> Result<(), String> {
+        crate::reporter::delivery::privacy::verify(self.directory())?;
         let bytes = serde_json::to_vec(binding).map_err(|error| error.to_string())?;
         self.with(|_| {
             let path = self.directory().join("delivery.json");

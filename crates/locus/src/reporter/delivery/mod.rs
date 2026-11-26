@@ -1,5 +1,6 @@
 mod batch;
 pub(super) mod journal;
+pub(in crate::reporter) mod privacy;
 pub(super) mod storage;
 
 pub mod transport;
@@ -90,10 +91,7 @@ impl Buffer<'_> {
         if !self.0.try_exists().map_err(|error| error.to_string())? {
             return Ok(false);
         }
-        #[cfg(unix)]
-        if !private(self.0).map_err(|_| "cannot inspect HTTPS buffer")? {
-            return Err("HTTPS buffer directory must be private".into());
-        }
+        privacy::verify(self.0)?;
         Ok(true)
     }
 
@@ -102,11 +100,11 @@ impl Buffer<'_> {
         url: &Url,
         secret: impl Fn() -> Result<String, String>,
     ) -> Result<(usize, bool), String> {
-        let file = OpenOptions::new()
-            .create(true)
-            .truncate(false)
-            .write(true)
-            .read(true)
+        let mut options = OpenOptions::new();
+        options.create(true).truncate(false).write(true).read(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        let file = options
             .open(self.0.join("sender.lock"))
             .map_err(|error| error.to_string())?;
         let gate = Factory::file(file, Policy::EXCLUSIVE).map_err(|error| error.to_string())?;
@@ -158,11 +156,4 @@ impl Buffer<'_> {
             .map_err(|e| e.to_string())?;
         Ok((count, more))
     }
-}
-
-#[cfg(unix)]
-pub(super) fn private(directory: &Path) -> std::io::Result<bool> {
-    use std::os::unix::fs::PermissionsExt;
-    let meta = fs::symlink_metadata(directory)?;
-    Ok(meta.is_dir() && meta.permissions().mode() & 0o077 == 0)
 }

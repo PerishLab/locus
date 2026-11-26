@@ -79,17 +79,21 @@ pub(super) fn open(directory: &str, ceiling: u64, segment: u64) -> Result<Spool,
     let root = Root(PathBuf::from(directory));
     root.create()
         .map_err(|error| Error::reporter(format!("cannot create spool {directory}: {error}")))?;
-    let lock = root.open(LOCK, false).map_err(Error::reporter)?;
-    let lock = Factory::file(lock, Policy::EXCLUSIVE)
-        .map_err(|error| Error::reporter(format!("cannot bind spool lock: {error}")))?;
-    Ok(Spool {
-        root,
-        ceiling,
-        segment,
-        age: None,
-        local: false,
-        lock: Mutex::new(lock),
-    })
+    Spool::attach(root, ceiling, segment)
+}
+
+pub(super) fn bound(
+    directory: &str,
+    ceiling: u64,
+    binding: &serde_json::Value,
+) -> Result<Spool, Error> {
+    let root = Root(PathBuf::from(directory));
+    root.create()
+        .map_err(|error| Error::reporter(format!("cannot create spool {directory}: {error}")))?;
+    super::delivery::privacy::tighten(&root.0).map_err(Error::reporter)?;
+    let spool = Spool::attach(root, ceiling, 0)?;
+    spool.bind(binding).map_err(Error::reporter)?;
+    Ok(spool)
 }
 
 pub(super) struct Spool {
@@ -114,6 +118,20 @@ impl Report for Spool {
 }
 
 impl Spool {
+    fn attach(root: Root, ceiling: u64, segment: u64) -> Result<Self, Error> {
+        let lock = root.open(LOCK, false).map_err(Error::reporter)?;
+        let lock = Factory::file(lock, Policy::EXCLUSIVE)
+            .map_err(|error| Error::reporter(format!("cannot bind spool lock: {error}")))?;
+        Ok(Self {
+            root,
+            ceiling,
+            segment,
+            age: None,
+            local: false,
+            lock: Mutex::new(lock),
+        })
+    }
+
     fn with(&self, action: impl FnOnce(&File) -> Reported) -> Reported {
         let gate = self
             .lock
