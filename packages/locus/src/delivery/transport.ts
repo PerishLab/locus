@@ -251,14 +251,16 @@ export class Transport {
     await this.drain(true);
   }
 
-  beacon(): void {
+  beacon(unloading = true): void {
     if (this.closed || this.paused || this.beaconing) return;
+    if (!unloading && this.inflight !== null) return;
     this.beaconing = true;
     void dispatch(this.ring, {
       endpoint: this.config.endpoint,
       headers: (key, gzip) => this.headers(key, gzip),
       fetcher: this.config.fetcher,
       notify: this.config.notify,
+      ack: (until) => this.spool.retire(until),
     }).finally(() => {
       this.beaconing = false;
     });

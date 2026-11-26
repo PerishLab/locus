@@ -1,5 +1,6 @@
 mod check;
 mod codec;
+mod dedupe;
 mod limit;
 mod origin;
 
@@ -9,6 +10,7 @@ use axum::extract::{ConnectInfo, State};
 use axum::http::{Extensions, HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::post;
+use dedupe::Cache;
 use limit::Limiter;
 use std::fmt;
 use std::net::SocketAddr;
@@ -110,6 +112,7 @@ struct Inner {
     origins: Vec<String>,
     forwarded: bool,
     limiter: Limiter,
+    dedupe: Cache,
     queue: Arc<locus::relay::Relay>,
 }
 
@@ -134,6 +137,7 @@ impl Relay {
             origins,
             forwarded: config.forwarded,
             limiter: Limiter::new(config.rpm, config.burst),
+            dedupe: Cache::new(),
             queue: Arc::new(queue),
         })))
     }
@@ -171,13 +175,22 @@ pub async fn ingest(
         Ok(raw) => raw,
         Err(status) => return status.into_response(),
     };
-    let lines = match check::batch(&raw, &relay.0.producer) {
-        Ok(lines) => lines,
+    let entries = match check::batch(&raw, &relay.0.producer) {
+        Ok(entries) => entries,
         Err(status) => return status.into_response(),
     };
+    let fresh = relay.0.dedupe.reserve(entries);
+    if fresh.is_empty() {
+        return StatusCode::NO_CONTENT.into_response();
+    }
+    let ids: Vec<String> = fresh.iter().map(|entry| entry.id.clone()).collect();
+    let lines: Vec<String> = fresh.into_iter().map(|entry| entry.line).collect();
     let queue = relay.0.queue.clone();
     match tokio::task::spawn_blocking(move || queue.enqueue(&lines)).await {
         Ok(Ok(())) => StatusCode::NO_CONTENT.into_response(),
-        Ok(Err(_)) | Err(_) => StatusCode::SERVICE_UNAVAILABLE.into_response(),
+        Ok(Err(_)) | Err(_) => {
+            relay.0.dedupe.release(&ids);
+            StatusCode::SERVICE_UNAVAILABLE.into_response()
+        }
     }
 }

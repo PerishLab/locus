@@ -25,7 +25,12 @@ const FORBIDDEN: &[&str] = &[
     "sudo",
 ];
 
-pub(crate) fn batch(raw: &[u8], producer: &str) -> Result<Vec<String>, StatusCode> {
+pub(crate) struct Entry {
+    pub(crate) id: String,
+    pub(crate) line: String,
+}
+
+pub(crate) fn batch(raw: &[u8], producer: &str) -> Result<Vec<Entry>, StatusCode> {
     let text = std::str::from_utf8(raw).map_err(|_| StatusCode::BAD_REQUEST)?;
     let trimmed = text.strip_suffix('\n').unwrap_or(text);
     if trimmed.is_empty() {
@@ -35,13 +40,18 @@ pub(crate) fn batch(raw: &[u8], producer: &str) -> Result<Vec<String>, StatusCod
     if parts.len() > LINES {
         return Err(StatusCode::PAYLOAD_TOO_LARGE);
     }
-    for line in &parts {
-        validate(line, producer)?;
+    let mut entries = Vec::with_capacity(parts.len());
+    for line in parts {
+        let id = validate(line, producer)?;
+        entries.push(Entry {
+            id,
+            line: line.to_owned(),
+        });
     }
-    Ok(parts.into_iter().map(str::to_owned).collect())
+    Ok(entries)
 }
 
-fn validate(line: &str, producer: &str) -> Result<(), StatusCode> {
+fn validate(line: &str, producer: &str) -> Result<String, StatusCode> {
     if line.is_empty() || line.contains('\r') {
         return Err(StatusCode::BAD_REQUEST);
     }
@@ -51,7 +61,12 @@ fn validate(line: &str, producer: &str) -> Result<(), StatusCode> {
         return Err(StatusCode::BAD_REQUEST);
     }
     let atom: Atom = serde_json::from_value(value).map_err(|_| StatusCode::BAD_REQUEST)?;
-    if atom.producer() != Some(producer) || atom.id().is_none_or(str::is_empty) {
+    let id = atom
+        .id()
+        .filter(|value| !value.is_empty())
+        .ok_or(StatusCode::BAD_REQUEST)?
+        .to_owned();
+    if atom.producer() != Some(producer) {
         return Err(StatusCode::BAD_REQUEST);
     }
     let tainted = atom
@@ -62,7 +77,7 @@ fn validate(line: &str, producer: &str) -> Result<(), StatusCode> {
     if tainted {
         return Err(StatusCode::BAD_REQUEST);
     }
-    Ok(())
+    Ok(id)
 }
 
 fn inspect(value: &Value) -> bool {

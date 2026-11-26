@@ -105,6 +105,41 @@ describe("page lifecycle, disabled no-op, semantic transparency, and adapters", 
     }
   });
 
+  it("skips redundant visibilitychange beacon while an inflight flush is active", async () => {
+    const state = "visibility" + "State";
+    const doc = new EventTarget();
+    (doc as unknown as Record<string, unknown>)[state] = "hidden";
+    const win = new EventTarget();
+    vi.stubGlobal("document", doc);
+    vi.stubGlobal("window", win);
+
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { calls, fetcher } = recorder(async () => {
+      await gate;
+      return new Response(null, { status: 204 });
+    });
+    const locus = new Locus({
+      producer: "inflight-app",
+      endpoint: "https://ingest.test/api/v1/atoms",
+      fetcher,
+      database: null,
+    });
+
+    locus.info("only-once");
+    const flushing = locus.flush();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    doc.dispatchEvent(new Event("visibilitychange"));
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(calls).toHaveLength(1);
+    release();
+    await flushing;
+    await locus.close();
+    expect(calls).toHaveLength(1);
+  });
+
   it("is a complete silent no-op when disabled or unconfigured and never throws into callers", async () => {
     const db = mockdb();
     const { calls, fetcher } = recorder();
