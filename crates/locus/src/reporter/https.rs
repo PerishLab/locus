@@ -38,8 +38,7 @@ pub(super) fn build(options: &Value, producer: Option<&str>) -> Result<Box<dyn R
         .to_str()
         .ok_or_else(|| Error::config("invalid buffer path"))?;
     let delivery = json!({"version":1,"format":"sqlite-wal/v1","producer":producer,"endpoint":endpoint.origin().ascii_serialization(),"key_file":options.credential});
-    let spool = spool::open(directory, CEILING, 0)?;
-    spool.bind(&delivery).map_err(Error::reporter)?;
+    let _spool = spool::bound(directory, CEILING, &delivery)?;
     if options
         .sender
         .as_ref()
