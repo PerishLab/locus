@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { Locus, type Diagnostic } from "@perishlab/locus";
+import { Locus, type Diagnostic, type Kind } from "@perishlab/locus";
 import { decode, recorder } from "./fixture.js";
+
+type Narrow = "histogram" extends Kind ? never : true;
+const narrowed: Narrow = true;
 
 describe("records, logger, fault, metric, and wire format", () => {
   it("enforces string-only logs and reports non-string rejections to hook", async () => {
@@ -84,6 +87,7 @@ describe("records, logger, fault, metric, and wire format", () => {
       database: null,
     });
 
+    expect(narrowed).toBe(true);
     locus.metric({
       name: "requests",
       unit: "count",
@@ -92,6 +96,14 @@ describe("records, logger, fault, metric, and wire format", () => {
       value: 42,
       epoch: 7,
       labels: { method: "GET", status: "200" },
+    });
+    locus.metric({
+      name: "requests",
+      unit: "count",
+      kind: "counter",
+      series: "pod-1",
+      value: 43,
+      epoch: "boot-uuid-1",
     });
     locus.metric({
       name: "latency",
@@ -103,9 +115,16 @@ describe("records, logger, fault, metric, and wire format", () => {
     locus.metric({
       name: "latency",
       unit: "ms",
-      kind: "histogram",
+      kind: "gauge",
       series: "pod-1",
       value: Number.POSITIVE_INFINITY,
+    });
+    locus.metric({
+      name: "latency",
+      unit: "ms",
+      kind: "histogram" as unknown as Kind,
+      series: "pod-1",
+      value: 12,
     });
     locus.metric({
       name: "requests",
@@ -113,6 +132,22 @@ describe("records, logger, fault, metric, and wire format", () => {
       kind: "counter",
       series: "pod-1",
       value: -5,
+    });
+    locus.metric({
+      name: "requests",
+      unit: "count",
+      kind: "counter",
+      series: "pod-1",
+      value: 1,
+      epoch: "",
+    });
+    locus.metric({
+      name: "requests",
+      unit: "count",
+      kind: "counter",
+      series: "pod-1",
+      value: 1,
+      epoch: 1.5,
     });
     locus.metric({
       name: 123 as unknown as string,
@@ -134,7 +169,7 @@ describe("records, logger, fault, metric, and wire format", () => {
     await locus.close();
 
     const atoms = calls.flatMap((call) => call.lines.map(decode));
-    expect(atoms).toHaveLength(1);
+    expect(atoms).toHaveLength(2);
     const atom = atoms[0];
     expect(atom.context["locus.schema"]).toBe("locus.metric");
     expect(atom.context["metric.name"]).toBe("requests");
@@ -145,7 +180,8 @@ describe("records, logger, fault, metric, and wire format", () => {
     expect(atom.context["metric.label.method"]).toBe("GET");
     expect(atom.context["metric.label.status"]).toBe("200");
     expect(atom.payload).toEqual({ value: 42 });
-    expect(diagnostics.filter((d) => d.code === "metric.invalid")).toHaveLength(5);
+    expect(atoms[1].context["metric.epoch"]).toBe("boot-uuid-1");
+    expect(diagnostics.filter((d) => d.code === "metric.invalid")).toHaveLength(8);
   });
 
   it("serializes BigInt nanoseconds as unquoted JSON integers and drops > 32 KiB records", async () => {

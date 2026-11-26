@@ -8,6 +8,7 @@ export type {
   Diagnostic,
   Edge,
   Fetcher,
+  Fork,
   Hook,
   Kind,
   Level,

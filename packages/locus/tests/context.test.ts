@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Locus } from "@perishlab/locus";
+import { Locus, type Diagnostic } from "@perishlab/locus";
 import { decode, recorder } from "./fixture.js";
 
 describe("context auto-inference", () => {
@@ -95,5 +95,73 @@ describe("context auto-inference", () => {
     expect(open?.context["locus.trace"]).toBe(close?.context["locus.trace"]);
     expect(open?.context["locus.span"]).toBe(close?.context["locus.span"]);
     expect(open?.context["locus.parent"]).toBeUndefined();
+  });
+
+  it("forks cross-trace links with fresh trace, cleared span, and strips reserved locus.* roles from user context", async () => {
+    const diagnostics: Diagnostic[] = [];
+    const { calls, fetcher } = recorder();
+    const locus = new Locus({
+      producer: "fork-app",
+      endpoint: "https://ingest.test/api/v1/atoms",
+      environment: { env: "prod", "locus.parent": "forged-env" },
+      hook: (d) => diagnostics.push(d),
+      fetcher,
+      database: null,
+    });
+
+    const child = locus.span("child", () => {
+      locus.info("forked-log");
+    });
+
+    const outer = locus.trace("outer", () => {
+      locus.with({ "locus.parent": "forged-with", "locus.trace": "bad", tenant: "t1" }, () => {
+        locus.info("same-trace");
+      });
+      locus.fork(() => {
+        child();
+      });
+    });
+
+    outer();
+    locus.fork(() => {
+      locus.info("unframed");
+    });
+    locus.fork("external-parent-span", () => {
+      const remote = locus.span("remote", () => {
+        locus.info("from-header");
+      });
+      remote();
+    });
+    locus.fork("", () => {
+      locus.info("empty-parent");
+    });
+
+    await locus.flush();
+    await locus.close();
+
+    const atoms = calls.flatMap((call) => call.lines.map(decode));
+    const entered = atoms.find((a) => a.source?.function === "outer" && a.source?.edge === "enter");
+    const same = atoms.find((a) => a.payload?.message === "same-trace");
+    const forked = atoms.find((a) => a.payload?.message === "forked-log");
+    const header = atoms.find((a) => a.payload?.message === "from-header");
+
+    expect(same?.context["locus.trace"]).toBe(entered?.context["locus.trace"]);
+    expect(same?.context["locus.parent"]).toBeUndefined();
+    expect(same?.context.tenant).toBe("t1");
+    expect(same?.context.env).toBe("prod");
+
+    expect(forked?.context["locus.trace"]).not.toBe(entered?.context["locus.trace"]);
+    expect(forked?.context["locus.parent"]).toBe(entered?.context["locus.span"]);
+    expect(forked?.context["locus.span"]).not.toBe(entered?.context["locus.span"]);
+    expect(forked?.choices.some((c) => c.role === "locus.parent" && c.key === entered?.context["locus.span"])).toBe(true);
+
+    expect(header?.context["locus.parent"]).toBe("external-parent-span");
+    expect(header?.context["locus.trace"]).toMatch(/^[0-9a-f]{32}$/);
+    expect(header?.context["locus.trace"]).not.toBe(entered?.context["locus.trace"]);
+    expect(header?.choices.some((c) => c.role === "locus.parent" && c.key === "external-parent-span")).toBe(true);
+
+    expect(diagnostics.filter((d) => d.code === "context.reserved")).toHaveLength(3);
+    expect(diagnostics.filter((d) => d.code === "fork.no_span")).toHaveLength(1);
+    expect(diagnostics.filter((d) => d.code === "fork.invalid")).toHaveLength(1);
   });
 });
