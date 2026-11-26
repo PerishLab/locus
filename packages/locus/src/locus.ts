@@ -8,6 +8,7 @@ import type {
   Detail,
   Diagnostic,
   Fetcher,
+  Fork,
   Frame,
   Hook,
   Level,
@@ -41,6 +42,7 @@ export class Locus {
 
   readonly trace: Wrapper;
   readonly span: Wrapper;
+  readonly fork: Fork;
   readonly with: <Ret>(context: Record<string, string>, fn: () => Ret) => Ret;
   readonly info: (text: string) => void;
   readonly warn: (text: string) => void;
@@ -55,8 +57,8 @@ export class Locus {
     this.producer = typeof options?.producer === "string" ? options.producer : "";
     const endpoint = typeof options?.endpoint === "string" ? options.endpoint.trim() : "";
     this.active = options?.enabled !== false && endpoint.length > 0;
-    this.environment = clean(options?.environment);
     this.hook = typeof options?.hook === "function" ? options.hook : undefined;
+    this.environment = clean(options?.environment, (diagnostic) => this.report(diagnostic));
     this.clock = new Clock();
     this.scope = new Scope(this.active ? (options?.mode ?? "auto") : "stack");
     if (this.active) {
@@ -82,6 +84,7 @@ export class Locus {
     });
     this.trace = binder.make("locus.trace");
     this.span = binder.make("locus.span");
+    this.fork = ((first: unknown, second?: unknown) => this.branch(first, second)) as Fork;
     this.with = (context, fn) => this.scoped(context, fn);
     this.info = (text) => this.log("info", text);
     this.warn = (text) => this.log("warn", text);
@@ -143,6 +146,30 @@ export class Locus {
     });
   }
 
+  private branch(first: unknown, second?: unknown): unknown {
+    const external = typeof first === "string";
+    const fn = (external ? second : first) as () => unknown;
+    if (typeof fn !== "function") return undefined;
+    if (!this.active) return fn();
+    const prior = this.scope.current();
+    const parent = external ? first : prior?.span;
+    if (!parent || parent.length > 512 || /[\u0000-\u001f\u007f]/.test(parent)) {
+      this.report({
+        code: external ? "fork.invalid" : "fork.no_span",
+        message: external
+          ? "fork parent span must be a nonempty control-free key"
+          : "fork requires an active span; pass an explicit parent span for cross-process links",
+      });
+      return fn();
+    }
+    const frame: Frame = {
+      trace: this.clock.trace(),
+      parent,
+      values: { ...(prior?.values ?? {}) },
+    };
+    return this.scope.run(frame, fn);
+  }
+
   private scoped<Ret>(context: Record<string, string>, fn: () => Ret): Ret {
     if (!this.active) return fn();
     const prior = this.scope.current();
@@ -150,7 +177,10 @@ export class Locus {
       trace: prior?.trace,
       span: prior?.span,
       parent: prior?.parent,
-      values: { ...(prior?.values ?? {}), ...clean(context) },
+      values: {
+        ...(prior?.values ?? {}),
+        ...clean(context, (diagnostic) => this.report(diagnostic)),
+      },
     };
     return this.scope.run(frame, fn);
   }

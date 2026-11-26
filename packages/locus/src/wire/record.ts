@@ -1,11 +1,21 @@
 import type { Atom, Choice, Diagnostic, Edge, Frame, Metric } from "../types.js";
 
 function valid(kind: unknown): kind is Metric["kind"] {
-  return kind === "counter" || kind === "gauge" || kind === "histogram";
+  return kind === "counter" || kind === "gauge";
 }
 
 function nonempty(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
+}
+
+function epoch(value: unknown): boolean {
+  if (value === undefined) return true;
+  if (typeof value === "number") return Number.isSafeInteger(value);
+  return nonempty(value);
+}
+
+function reserved(key: string): boolean {
+  return key.startsWith("locus.");
 }
 
 function checklabels(labels: unknown): boolean {
@@ -17,11 +27,22 @@ function checklabels(labels: unknown): boolean {
   return true;
 }
 
-export function clean(values?: Record<string, string>): Record<string, string> {
+export function clean(
+  values?: Record<string, string>,
+  report?: (diagnostic: Diagnostic) => void,
+): Record<string, string> {
   if (!values || typeof values !== "object") return {};
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(values)) {
-    if (key.length > 0 && typeof value === "string") out[key] = value;
+    if (key.length === 0 || typeof value !== "string") continue;
+    if (reserved(key)) {
+      report?.({
+        code: "context.reserved",
+        message: `reserved role "${key}" cannot be set in user context; same-trace nesting is automatic via locus.trace containment and cross-trace links must use locus.fork()`,
+      });
+      continue;
+    }
+    out[key] = value;
   }
   return out;
 }
@@ -56,8 +77,8 @@ export function admit(sample: Metric, report: (diagnostic: Diagnostic) => void):
     report({ code: "metric.invalid", message: "counter value must be nonnegative" });
     return false;
   }
-  if (sample.epoch !== undefined && !Number.isSafeInteger(sample.epoch)) {
-    report({ code: "metric.invalid", message: "metric epoch must be a safe integer" });
+  if (!epoch(sample.epoch)) {
+    report({ code: "metric.invalid", message: "metric epoch must be a nonempty string or safe integer" });
     return false;
   }
   if (!checklabels(sample.labels)) {

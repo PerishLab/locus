@@ -48,6 +48,16 @@ and engine diagnostic handoff.
   Within a process, `Engine::fork` derives from a frame Context a view with a
   fresh trace, the frame's span as parent, and no span. `trace` exposes its
   frame Context to the function body only through an explicit `frame` name.
+  Unlike OpenTelemetry's `parentSpanId`, same-trace nested spans MUST NOT set
+  `locus.parent`: doing so produces `links.missing`, `links.conflicting`, and
+  detached trees in `locus-derivation` because `locus.parent` resolves only
+  across distinct traces. In `@perishlab/locus`, same-trace nesting is automatic
+  through `locus.trace` / `locus.span` containment, cross-trace links enter only
+  through `locus.fork(fn)` (in-process active span) or `locus.fork(parent, fn)`
+  (cross-process parent span), user `locus.with()` / `environment` strips
+  reserved `locus.*` keys with `context.reserved`, and `Metric.kind` is narrowed
+  to `"counter" | "gauge"` with `epoch?: string | number` matching
+  `locus-derivation`.
 - Automatic tracing emits one entry and one normal-return record per traced
   function declaration. Error returns are normal returns; panic, abort,
   cancellation, process exit, and process loss leave the entry without an

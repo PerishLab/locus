@@ -2,7 +2,7 @@ export type Origin = "explicit" | "generated" | "inherited";
 
 export type Edge = "enter" | "return";
 
-export type Kind = "counter" | "gauge" | "histogram";
+export type Kind = "counter" | "gauge";
 
 export type Level = "info" | "warn" | "error";
 
@@ -46,7 +46,7 @@ export type Metric = {
   series: string;
   value: number;
   labels?: Record<string, string>;
-  epoch?: number;
+  epoch?: string | number;
 };
 
 export type Detail = Record<string, string | number | boolean>;
@@ -57,6 +57,11 @@ export type Apply = <This, Args extends unknown[], Ret>(
   target: (this: This, ...args: Args) => Ret,
   context: ClassMethodDecoratorContext<This, (this: This, ...args: Args) => Ret>,
 ) => (this: This, ...args: Args) => Ret;
+
+export interface Fork {
+  <Ret>(fn: () => Ret): Ret;
+  <Ret>(parent: string, fn: () => Ret): Ret;
+}
 
 export interface Wrapper {
   <This, Args extends unknown[], Ret>(
