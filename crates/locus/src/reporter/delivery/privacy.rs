@@ -34,6 +34,11 @@ enum Verdict {
 }
 
 #[cfg(unix)]
+fn bits(mode: impl Into<u64>) -> u32 {
+    (mode.into() & 0o7777) as u32
+}
+
+#[cfg(unix)]
 fn judge(stat: Stat, owner: Identity, heal: bool) -> Verdict {
     if stat.uid != owner.uid {
         return Verdict::Refuse;
@@ -125,7 +130,7 @@ impl Dir<'_> {
         Ok(Stat {
             uid: stat.st_uid,
             gid: stat.st_gid,
-            mode: stat.st_mode & 0o7777,
+            mode: bits(stat.st_mode),
         })
     }
 
@@ -264,5 +269,11 @@ mod tests {
         for (stat, heal, expected) in cases {
             assert_eq!(judge(stat, owner, heal), expected);
         }
+    }
+
+    #[test]
+    fn widths() {
+        assert_eq!(bits(0o42770_u16), 0o2770);
+        assert_eq!(bits(0o100700_u32), 0o0700);
     }
 }
