@@ -1,6 +1,6 @@
 use crate::registry::Registry;
 use crate::store::{Producer, Record, Store};
-use locus::reporter::spool;
+use locus_derivation::locus::reporter::spool;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};

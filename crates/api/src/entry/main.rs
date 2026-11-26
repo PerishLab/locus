@@ -20,7 +20,7 @@ use std::thread;
 use std::time::Duration;
 
 #[derive(Parser)]
-#[command(name = "locus-api", version = plumb::version!("LOCUS"), after_help = "Observation is off by default. Set [locus] enabled = true in config.toml under the platform .locus home, separate from locus-api.toml server retention. export-openapi buffers to state/locus there and registers it with endpoint, else LOCUS_API, else http://127.0.0.1:43308. serve records its migrate, drain, seal and retention cycles into state/locus-api under --home and never registers that buffer with any endpoint, so its own records never re-enter its drain. Observation failures go to stderr and never change output, exit status or serving.")]
+#[command(name = "locus-api", version = plumb::version!("LOCUS"), after_help = "Observation is off by default. Set [locus] enabled = true in config.toml under the platform .locus home, separate from locus-api.toml server retention. export-openapi buffers to state/locus there and registers it with endpoint, else LOCUS_API, else http://127.0.0.1:43308. serve records its migrate, drain, seal and retention cycles into state/locus-api under --home and never registers that buffer with any endpoint, so its own records never re-enter its drain. Set [locus] serve_buffer_mib to 2 through 512 (default 16) to retain that many MiB of local records. Oldest sealed segments expire without a loss diagnostic. Observation failures go to stderr and never change output, exit status or serving.")]
 struct Cli {
     #[command(subcommand)]
     command: Command,

@@ -136,7 +136,9 @@ and engine diagnostic handoff.
 - The Locus-owned legacy spool ceiling bounds active, sealed, and claimed bytes
   and is only a safety valve. Past it, the oldest unclaimed sealed segments are
   deleted, their records counted in `loss.jsonl`, and the loss reported to the
-  hook as `reporter.loss`. Loss never re-enters the Atom stream.
+  hook as `reporter.loss`. Loss never re-enters the Atom stream. When writing a
+  line would raise the ledger above 1 MiB, the writer starts a fresh
+  `loss.jsonl` under the spool lock.
 - Hooks observe immutable outcomes. Their return value cannot influence
   context, acceptance, or reporting.
 - Engine diagnostics never re-enter the Atom stream or reporter runtime. They
@@ -184,7 +186,9 @@ and engine diagnostic handoff.
   take `locus` from the published registry `"0"`, the same copy plumb carries.
   `locus-derivation` consumes and re-exports its matching workspace Locus
   SDK for Atom input. The CLI uses this exact SDK for its Codex adapter and
-  derivation inputs. Its own tracing uses the SDK linked by published Plumb.
+  derivation inputs. Tracing a Plumb run uses the SDK linked by published
+  Plumb. API serve's separate observer uses the workspace SDK through
+  `locus-derivation` and selects that SDK explicitly in the trace macro.
   No `[patch]` unifies the workspace engine with plumb's.
 - Inspection runs Locus's default analyzers unless a product turns them off:
   `trace.size`, `trace.prefix`, `trace.held`, `span.size`, `span.prefix` and
@@ -369,9 +373,13 @@ and engine diagnostic handoff.
   startup migrate and each drain, seal and retention as traced spans with
   their countable facts (drain sources, segments, records and rejected lines;
   migrated days; the declared days and retain floor; each step's outcome) into
-  `<home>/state/locus-api`, an `api` buffer whose endpoint is never a server.
-  That buffer is never registered, so the server's own records never pass its
-  `POST /api/v1/spools` or drain, whatever endpoint `[locus]` names. Observation
+  `<home>/state/locus-api`, a `local` buffer isolated from registry and drain.
+  Set `[locus] serve_buffer_mib` in the same `config.toml` to 2 through 512
+  (default 16) to bound active and sealed record bytes independently of server
+  retention. The buffer seals on append at 1 MiB or after one minute and
+  expires the oldest segments as needed. Expiry emits no loss record or
+  diagnostic. Opening the buffer applies the cap to preexisting records and
+  clears an inherited loss ledger if it already exceeds 1 MiB. Observation
   failures reach stderr and never change a cycle's result or stop `serve`.
 - Retention is declared only in `[retention] days` of `<home>/locus-api.toml`,
   the server's standard config file, which also holds `[[reader]]`; malformed config refuses at startup.

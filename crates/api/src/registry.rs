@@ -1,5 +1,6 @@
 use crate::drain::Source;
 use crate::store::Producer;
+use locus_derivation::locus::reporter::spool;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io;
@@ -38,6 +39,9 @@ impl Registry {
         let producer = Producer::new(producer)?;
         if !path.is_absolute() || !path.join(LOCK).is_file() {
             return Err(format!("{} is not a Locus spool", path.display()));
+        }
+        if spool::local::marked(path).map_err(|error| error.to_string())? {
+            return Err(format!("{} uses local retention", path.display()));
         }
         let path = fs::canonicalize(path).map_err(|error| error.to_string())?;
         let mut entries = self

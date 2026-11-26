@@ -34,6 +34,11 @@ impl Spec {
         )
     }
 
+    pub fn local(path: impl Into<PathBuf>, mib: u64) -> Self {
+        let path = path.into();
+        Self::new("local", json!({"path": path.to_str(), "mib": mib}))
+    }
+
     pub fn https(
         endpoint: impl Into<String>,
         credential: impl Into<PathBuf>,
@@ -84,6 +89,7 @@ pub(crate) trait Report: Send + Sync {
 pub(crate) fn build(spec: &Spec, producer: Option<&str>) -> Result<Box<dyn Report>, Error> {
     match spec.name() {
         "api" => api::build(spec.options()),
+        "local" => spool::local::build(spec.options()),
         "https" => https::build(spec.options(), producer),
         name => Err(Error::config(format!("unknown reporter: {name}"))),
     }
