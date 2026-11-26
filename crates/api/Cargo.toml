@@ -13,6 +13,7 @@ path = "src/entry/main.rs"
 
 [dependencies]
 radicula-oidc.workspace = true
+flate2.workspace = true
 getrandom.workspace = true
 url = { workspace = true, features = ["serde"] }
 radicula-lock.workspace = true

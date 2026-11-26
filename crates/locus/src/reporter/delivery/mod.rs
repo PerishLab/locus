@@ -21,6 +21,13 @@ struct Binding {
     credential: PathBuf,
 }
 
+#[derive(Clone)]
+pub(in crate::reporter) struct Route {
+    pub(in crate::reporter) endpoint: Url,
+    pub(in crate::reporter) producer: String,
+    pub(in crate::reporter) key: String,
+}
+
 impl Binding {
     fn read(directory: &Path) -> Result<Self, String> {
         let bytes = fs::read(directory.join("delivery.json"))
@@ -35,42 +42,121 @@ impl Binding {
     }
 
     fn address(&self) -> Result<Url, String> {
-        let mut url = transport::origin(&self.endpoint)?;
+        let url = transport::origin(&self.endpoint)?;
         if url.scheme() != "https" {
             return Err("delivery requires HTTPS".into());
         }
-        url.set_path("/api/v1/atoms");
-        url.query_pairs_mut()
-            .append_pair("producer", &self.producer);
-        Ok(url)
+        Ok(destination(&url, &self.producer))
     }
 }
 
 pub fn send(directory: &Path) -> Result<usize, String> {
-    if !directory.is_absolute() {
-        return Err("delivery buffer must be absolute".into());
-    }
-    if !directory.try_exists().map_err(|error| error.to_string())? {
+    let buffer = Buffer(directory);
+    if !buffer.ready()? {
         return Ok(0);
     }
-    #[cfg(unix)]
-    if !private(directory).map_err(|_| "cannot inspect HTTPS buffer")? {
-        return Err("HTTPS buffer directory must be private".into());
-    }
     let binding = Binding::read(directory)?;
-    let file = OpenOptions::new()
-        .create(true)
-        .truncate(false)
-        .write(true)
-        .read(true)
-        .open(directory.join("sender.lock"))
-        .map_err(|error| error.to_string())?;
-    let gate = Factory::file(file, Policy::EXCLUSIVE).map_err(|error| error.to_string())?;
-    match gate.with(Wait::timeout(std::time::Duration::from_secs(5)), || {
-        drain(directory, &binding, &transport::agent())
-    }) {
-        Ok(result) => result,
-        Err(error) => Err(format!("sender lock refused: {error}")),
+    let url = binding.address()?;
+    buffer
+        .deliver(&url, || transport::secret(&binding.credential))
+        .map(|(count, _)| count)
+}
+
+pub(in crate::reporter) fn push(directory: &Path, route: &Route) -> Result<bool, String> {
+    let buffer = Buffer(directory);
+    if !buffer.ready()? {
+        return Ok(false);
+    }
+    let url = destination(&route.endpoint, &route.producer);
+    buffer
+        .deliver(&url, || Ok(route.key.clone()))
+        .map(|(_, more)| more)
+}
+
+fn destination(origin: &Url, producer: &str) -> Url {
+    let mut url = origin.clone();
+    url.set_path("/api/v1/atoms");
+    url.query_pairs_mut().append_pair("producer", producer);
+    url
+}
+
+struct Buffer<'a>(&'a Path);
+
+impl Buffer<'_> {
+    fn ready(&self) -> Result<bool, String> {
+        if !self.0.is_absolute() {
+            return Err("delivery buffer must be absolute".into());
+        }
+        if !self.0.try_exists().map_err(|error| error.to_string())? {
+            return Ok(false);
+        }
+        #[cfg(unix)]
+        if !private(self.0).map_err(|_| "cannot inspect HTTPS buffer")? {
+            return Err("HTTPS buffer directory must be private".into());
+        }
+        Ok(true)
+    }
+
+    fn deliver(
+        &self,
+        url: &Url,
+        secret: impl Fn() -> Result<String, String>,
+    ) -> Result<(usize, bool), String> {
+        let file = OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .read(true)
+            .open(self.0.join("sender.lock"))
+            .map_err(|error| error.to_string())?;
+        let gate = Factory::file(file, Policy::EXCLUSIVE).map_err(|error| error.to_string())?;
+        match gate.with(Wait::timeout(std::time::Duration::from_secs(5)), || {
+            self.drain(url, secret, &transport::agent())
+        }) {
+            Ok(result) => result,
+            Err(error) => Err(format!("sender lock refused: {error}")),
+        }
+    }
+
+    fn drain(
+        &self,
+        url: &Url,
+        secret: impl Fn() -> Result<String, String>,
+        agent: &ureq::Agent,
+    ) -> Result<(usize, bool), String> {
+        let mut db = journal::open(self.0, false)?;
+        db.execute_batch("PRAGMA synchronous=FULL")
+            .map_err(|e| e.to_string())?;
+        let mut count = 0;
+        for _ in 0..16 {
+            let Some(batch) = Batch::open(&mut db)? else {
+                return Ok((count, false));
+            };
+            let key = secret()?;
+            let response = agent
+                .post(url.as_str())
+                .config()
+                .timeout_global(Some(std::time::Duration::from_secs(15)))
+                .build()
+                .header("authorization", format!("Bearer {key}"))
+                .header("idempotency-key", &batch.token)
+                .content_type("application/x-ndjson")
+                .send(batch.bytes.as_slice())
+                .map_err(|_| "HTTPS request failed; batch retained")?;
+            if response.status().as_u16() != 204 {
+                return Err(format!(
+                    "HTTPS delivery returned {}; batch retained",
+                    response.status().as_u16()
+                ));
+            }
+            count += batch.confirm(&mut db).map_err(|error| error.to_string())?;
+        }
+        let more = db
+            .query_row("SELECT EXISTS(SELECT 1 FROM records)", [], |row| {
+                row.get::<_, bool>(0)
+            })
+            .map_err(|e| e.to_string())?;
+        Ok((count, more))
     }
 }
 
@@ -79,36 +165,4 @@ pub(super) fn private(directory: &Path) -> std::io::Result<bool> {
     use std::os::unix::fs::PermissionsExt;
     let meta = fs::symlink_metadata(directory)?;
     Ok(meta.is_dir() && meta.permissions().mode() & 0o077 == 0)
-}
-
-fn drain(directory: &Path, binding: &Binding, agent: &ureq::Agent) -> Result<usize, String> {
-    let url = binding.address()?;
-    let mut db = journal::open(directory, false)?;
-    db.execute_batch("PRAGMA synchronous=FULL")
-        .map_err(|e| e.to_string())?;
-    let mut count = 0;
-    for _ in 0..16 {
-        let Some(batch) = Batch::open(&mut db)? else {
-            break;
-        };
-        let key = transport::secret(&binding.credential)?;
-        let response = agent
-            .post(url.as_str())
-            .config()
-            .timeout_global(Some(std::time::Duration::from_secs(15)))
-            .build()
-            .header("authorization", format!("Bearer {key}"))
-            .header("idempotency-key", &batch.token)
-            .content_type("application/x-ndjson")
-            .send(batch.bytes.as_slice())
-            .map_err(|_| "HTTPS request failed; batch retained")?;
-        if response.status().as_u16() != 204 {
-            return Err(format!(
-                "HTTPS delivery returned {}; batch retained",
-                response.status().as_u16()
-            ));
-        }
-        count += batch.confirm(&mut db).map_err(|error| error.to_string())?;
-    }
-    Ok(count)
 }

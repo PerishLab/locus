@@ -2,6 +2,7 @@ mod atom;
 pub mod collector;
 mod context;
 pub use reporter::delivery;
+pub use reporter::relay;
 mod engine;
 mod error;
 pub mod generator;
