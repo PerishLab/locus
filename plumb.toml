@@ -79,4 +79,4 @@ packages = ["locus-macro", "locus", "locus-relay", "locus-derivation", "locus-cl
 
 [release.npm]
 registry = "https://npm.pkg.github.com/"
-packages = ["@perishlab/locus-web"]
+packages = ["@perishlab/locus", "@perishlab/locus-web"]
