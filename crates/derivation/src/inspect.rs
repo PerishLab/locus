@@ -3,6 +3,7 @@ pub mod evidence;
 mod mapping;
 mod model;
 
+use crate::derive::seen::Seen;
 use config::Analyzer;
 pub use config::{Config, File};
 use locus::Atom;
@@ -65,6 +66,7 @@ impl<'a> Runtime<'a> {
 pub struct Inspection<'a> {
     config: &'a Config,
     runtimes: Vec<Runtime<'a>>,
+    seen: Seen,
     records: u64,
 }
 
@@ -73,6 +75,7 @@ impl<'a> Inspection<'a> {
         Self {
             config,
             runtimes: config.analyzers().iter().map(Runtime::new).collect(),
+            seen: Seen::default(),
             records: 0,
         }
     }
@@ -82,6 +85,9 @@ impl<'a> Inspection<'a> {
             .records
             .checked_add(1)
             .ok_or_else(|| "Atom count overflowed".to_string())?;
+        if !self.seen.admit(atom)? {
+            return Ok(());
+        }
         for runtime in &mut self.runtimes {
             runtime.state.observe(atom, encoded)?;
         }

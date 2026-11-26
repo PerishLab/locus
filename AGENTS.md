@@ -165,7 +165,10 @@ and engine diagnostic handoff.
   - Its input is one ordered, bounded sequence: within each span the entry
     precedes the return, and refusal, headless returns and coverage are
     defined over exactly that sequence, the read window. Records are counted
-    as observed.
+    as observed. Aggregating derivations (`metric`, `span`, `inspect`, and
+    `evidence`) deduplicate exact `(producer, atom.id)` replays and refuse
+    conflicting payloads sharing the same identity, while `locus-api` stores
+    records verbatim and `query`/`tree` preserve stored multiplicity.
   - It assumes no representation. The `representation-bytes` mapping measures
     the encoded size the caller passes with each Atom; the CLI passes the
     JSONL line as read.
