@@ -71,7 +71,7 @@ export class Locus {
         database: database(options?.database),
         notify: (diagnostic) => this.report(diagnostic),
       });
-      this.detach = attach(() => this.transport?.beacon());
+      this.detach = attach((unloading) => this.transport?.beacon(unloading));
     } else {
       this.transport = null;
       this.detach = null;

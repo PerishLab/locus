@@ -1,19 +1,8 @@
 import type { Diagnostic, Entry, Payload, Segment } from "../types.js";
 import { measure } from "../wire/encode.js";
+import { drop, fits, maxbytes, maxlines, prune, ready, stamp, trim } from "./segments.js";
 
 const store = "segments";
-const maxlines = 64;
-const maxbytes = 64 * 1024;
-const maxage = 30_000;
-const maxtotal = 2 * 1024 * 1024;
-const maxsegments = 32;
-const ttl = 24 * 60 * 60 * 1000;
-
-type Pruned = {
-  keep: Segment[];
-  expired: number;
-  rotated: number;
-};
 
 type Spec = {
   producer: string;
@@ -64,65 +53,6 @@ function transact<T>(
   });
 }
 
-function fits(seg: Segment, bytes: number, now: number): boolean {
-  if (seg.sealed) return false;
-  if (seg.count + 1 > maxlines || seg.bytes + bytes > maxbytes) return false;
-  return now - seg.created < maxage;
-}
-
-function ready(seg: Segment, seal: boolean, now: number): boolean {
-  return seg.sealed || seal || now - seg.created >= maxage;
-}
-
-function prune(object: IDBObjectStore, all: Segment[], now: number): Pruned {
-  const keep: Segment[] = [];
-  let expired = 0;
-  for (const seg of all) {
-    if (now - seg.created > ttl && seg.id !== undefined) {
-      object.delete(seg.id);
-      expired += 1;
-    } else {
-      keep.push(seg);
-    }
-  }
-  let bytes = keep.reduce((sum, seg) => sum + seg.bytes, 0);
-  let rotated = 0;
-  while ((keep.length > maxsegments || bytes > maxtotal) && keep.length > 0) {
-    const oldest = keep.shift();
-    if (oldest && oldest.id !== undefined) {
-      object.delete(oldest.id);
-      bytes -= oldest.bytes;
-      rotated += 1;
-    }
-  }
-  return { keep, expired, rotated };
-}
-
-function trim(
-  object: IDBObjectStore,
-  keep: Segment[],
-  extra: { bytes: number; added: number },
-): number {
-  let bytes = keep.reduce((sum, seg) => sum + seg.bytes, 0) + extra.bytes;
-  let total = keep.length + extra.added;
-  let rotated = 0;
-  while ((total > maxsegments || bytes > maxtotal) && keep.length > 0) {
-    const oldest = keep.shift();
-    if (oldest && oldest.id !== undefined) {
-      object.delete(oldest.id);
-      bytes -= oldest.bytes;
-      total -= 1;
-      rotated += 1;
-    }
-  }
-  return rotated;
-}
-
-function stamp(seg: Segment, session: string, seq?: number): void {
-  if (seq === undefined) return;
-  seg.marks = { ...(seg.marks ?? {}), [session]: seq };
-}
-
 export class Spool {
   private readonly factory: IDBFactory | null;
   private readonly name: string;
@@ -130,6 +60,7 @@ export class Spool {
   private readonly notify: (diagnostic: Diagnostic) => void;
   private db: IDBDatabase | null = null;
   private broken = false;
+  private floor = 0;
   private queue: Promise<unknown> = Promise.resolve();
 
   constructor(spec: Spec) {
@@ -182,8 +113,9 @@ export class Spool {
       const pruned = prune(object, all, now);
       const last = pruned.keep[pruned.keep.length - 1];
       let rotated = pruned.rotated;
-      if (last && fits(last, entry.bytes, now)) {
+      if (last && fits(last, entry.bytes, now, this.session)) {
         last.lines.push(entry.line);
+        last.seqs = [...(last.seqs ?? []), entry.seq ?? 0];
         last.bytes += entry.bytes;
         last.count += 1;
         stamp(last, this.session, entry.seq);
@@ -197,10 +129,12 @@ export class Spool {
         }
         const marks = entry.seq !== undefined ? { [this.session]: entry.seq } : undefined;
         object.add({
+          session: this.session,
           created: now,
           bytes: entry.bytes,
           count: 1,
           lines: [entry.line],
+          seqs: [entry.seq ?? 0],
           sealed: entry.bytes >= maxbytes,
           marks,
         });
@@ -213,6 +147,7 @@ export class Spool {
 
   append(entry: Entry, now = Date.now()): Promise<boolean> {
     return this.serialize(async () => {
+      if (entry.seq !== undefined && entry.seq <= this.floor) return true;
       const db = await this.open();
       if (!db) return false;
       try {
@@ -224,6 +159,21 @@ export class Spool {
           message: reason instanceof Error ? reason.message : "spool append failed",
         });
         return false;
+      }
+    });
+  }
+
+  retire(until: number): Promise<void> {
+    if (until > this.floor) this.floor = until;
+    return this.serialize(async () => {
+      const db = await this.open();
+      if (!db) return;
+      try {
+        await transact(db, (object, all) => {
+          drop(object, all, this.session, until);
+        });
+      } catch {
+        return;
       }
     });
   }

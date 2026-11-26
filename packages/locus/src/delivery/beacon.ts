@@ -10,6 +10,7 @@ export type Target = {
   headers: (key: string, gzip: boolean) => Record<string, string>;
   fetcher: Fetcher;
   notify: (diagnostic: Diagnostic) => void;
+  ack?: (until: number) => Promise<void> | void;
 };
 
 type Encoded = {
@@ -53,6 +54,7 @@ export async function dispatch(ring: Ring, target: Target): Promise<void> {
     });
     if (response.status >= 200 && response.status < 300 && fitted.payload.until !== undefined) {
       ring.drop(fitted.payload.until);
+      await target.ack?.(fitted.payload.until);
     }
   } catch {
     return;

@@ -724,7 +724,11 @@ or retry logic). Every incoming `POST` passes five gates in order:
    role/key, `collections` role, or delimiter/camelCase segment matching
    `password`, `pass`, `token`, `secret`, `authorization`, `cookie`,
    `verifier`, `rescue`, `sudo`, or `code_verifier`.
-5. **Durable Enqueue**: validated lines commit to the local WAL queue and wake
-   asynchronous upstream delivery (with startup drain of preexisting rows and
-   bounded exponential retry backoff `1s`..`30s` on transient failures),
-   returning `204` on durable append (`503` on queue failure).
+5. **Durable Enqueue**: validated lines pass a bounded recent `atom.id`
+   deduplication window (up to 16,384 entries / 5-minute TTL, rolled back on
+   enqueue failure) so browser `pagehide` / `IndexedDB` replays across
+   differently-framed batches return `204` without duplicating records; fresh
+   lines commit to the local WAL queue and wake asynchronous upstream delivery
+   (with startup drain of preexisting rows and bounded exponential retry
+   backoff `1s`..`30s` on transient failures), returning `204` on durable
+   append (`503` on queue failure).

@@ -180,3 +180,62 @@ async fn endtoend() {
     assert!(received.contains(&second));
     assert!(!keys.is_empty());
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn deduplicates() {
+    let (mock, receiver) = upstream();
+    let root = tempfile::tempdir().expect("tempdir");
+    let config = Config::new(
+        format!("http://{mock}"),
+        "machine-secret",
+        "folio",
+        root.path().join("buffer"),
+    )
+    .origins(vec!["https://folio.perish.uk".into()]);
+    let relay = Relay::open(config).expect("open");
+    let app = Router::new().nest("/api/observe", router(relay.clone()));
+    let listener = TcpListener::bind("127.0.0.1:0").await.expect("listen");
+    let address = listener.local_addr().expect("addr");
+    tokio::spawn(async move {
+        axum::serve(
+            listener,
+            app.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .await
+        .expect("serve");
+    });
+
+    let first = atom("dup-1", 1_700_000_000_000_000_001, r#"{"step":"start"}"#);
+    let second = atom("uniq-2", 1_700_000_000_000_000_002, r#"{"step":"cb"}"#);
+    let url = format!("http://{address}/api/observe");
+    let single = format!("{first}\n");
+    let combined = format!("{first}\n{second}\n");
+    let replay = format!("{first}\n");
+    tokio::task::spawn_blocking(move || {
+        let client = agent();
+        for body in [single, combined, replay] {
+            let reply = client
+                .post(&url)
+                .header("origin", "https://folio.perish.uk")
+                .header("sec-fetch-site", "same-origin")
+                .content_type("application/x-ndjson")
+                .send(body.as_bytes())
+                .expect("post");
+            assert_eq!(reply.status().as_u16(), 204);
+        }
+    })
+    .await
+    .expect("join");
+
+    relay.settle().expect("settle");
+    let mut received = String::new();
+    while !received.contains(r#""id":"dup-1""#) || !received.contains(r#""id":"uniq-2""#) {
+        let item = receiver
+            .recv_timeout(Duration::from_secs(5))
+            .expect("upstream");
+        received.push_str(&item.body);
+    }
+    assert!(receiver.recv_timeout(Duration::from_millis(300)).is_err());
+    assert_eq!(received.matches(r#""id":"dup-1""#).count(), 1);
+    assert_eq!(received.matches(r#""id":"uniq-2""#).count(), 1);
+}

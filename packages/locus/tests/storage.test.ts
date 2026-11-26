@@ -112,6 +112,62 @@ describe("L1 ring buffer, L2 IndexedDB spool, rotation, TTL, and lock", () => {
     expect(ids).toContain("seg-35");
   });
 
+  it("isolates unsealed IndexedDB segments per session and retires beacon-acknowledged records from spool", async () => {
+    const state = "visibility" + "State";
+    const doc = new EventTarget();
+    (doc as unknown as Record<string, unknown>)[state] = "hidden";
+    const win = new EventTarget();
+    vi.stubGlobal("document", doc);
+    vi.stubGlobal("window", win);
+
+    const mock = mockdb();
+    const first = recorder();
+    const tab = new Locus({
+      producer: "dedupe-app",
+      endpoint: "https://ingest.test/api/v1/atoms",
+      fetcher: first.fetcher,
+      database: mock.factory,
+    });
+
+    tab.info("before-tab-hide");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    doc.dispatchEvent(new Event("visibilitychange"));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await tab.flush();
+    await tab.close();
+
+    const sent = first.calls.flatMap((call) => call.lines.map(decode));
+    expect(sent).toHaveLength(1);
+    expect(sent[0].payload?.message).toBe("before-tab-hide");
+    expect(mock.stores.get("locus:spool:dedupe-app")?.size ?? 0).toBe(0);
+
+    const blocked = recorder(() => new Response(null, { status: 503 }));
+    const oldtab = new Locus({
+      producer: "session-app",
+      endpoint: "https://ingest.test/api/v1/atoms",
+      fetcher: blocked.fetcher,
+      database: mock.factory,
+    });
+    oldtab.info("from-page-1");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await oldtab.close();
+
+    const recovered = recorder();
+    const newtab = new Locus({
+      producer: "session-app",
+      endpoint: "https://ingest.test/api/v1/atoms",
+      fetcher: recovered.fetcher,
+      database: mock.factory,
+    });
+    newtab.info("from-page-2");
+    await newtab.flush();
+    await newtab.close();
+
+    expect(recovered.calls).toHaveLength(2);
+    expect(recovered.calls[0].lines.map((l) => decode(l).payload?.message)).toEqual(["from-page-1"]);
+    expect(recovered.calls[1].lines.map((l) => decode(l).payload?.message)).toEqual(["from-page-2"]);
+  });
+
   it("falls back cleanly to L1-only when IndexedDB open fails or write throws QuotaExceededError", async () => {
     const diagnostics: Diagnostic[] = [];
     const denied = mockdb({ fail: true });

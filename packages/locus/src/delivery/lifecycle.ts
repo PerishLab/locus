@@ -1,11 +1,11 @@
-export function attach(handler: () => void): () => void {
+export function attach(handler: (unloading: boolean) => void): () => void {
   const doc = typeof document !== "undefined" ? document : undefined;
   const win = typeof window !== "undefined" ? window : undefined;
   const visibility = () => {
-    if (doc?.visibilityState === "hidden") handler();
+    if (doc?.visibilityState === "hidden") handler(false);
   };
   const hide = () => {
-    handler();
+    handler(true);
   };
   if (doc && typeof doc.addEventListener === "function") {
     doc.addEventListener("visibilitychange", visibility);

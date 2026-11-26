@@ -101,10 +101,12 @@ export type Entry = {
 
 export type Segment = {
   id?: number;
+  session?: string;
   created: number;
   bytes: number;
   count: number;
   lines: string[];
+  seqs?: number[];
   sealed: boolean;
   marks?: Record<string, number>;
 };
