@@ -8,12 +8,24 @@ const SECOND: u64 = 1_000_000_000;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct File {
+pub struct File {
     version: u16,
     #[serde(default)]
     disable: Vec<String>,
     #[serde(default)]
     analyzer: Vec<Spec>,
+}
+
+impl File {
+    pub fn build(self, name: &str) -> Result<Config, String> {
+        if self.version != 1 {
+            return Err(format!(
+                "invalid {name}: unsupported version {}",
+                self.version
+            ));
+        }
+        compose(self).map_err(|error| format!("invalid {name}: {error}"))
+    }
 }
 
 #[derive(Deserialize)]
@@ -94,13 +106,7 @@ impl Config {
     pub fn parse(name: &str, content: &str) -> Result<Self, String> {
         let file: File =
             toml::from_str(content).map_err(|error| format!("invalid {name}: {error}"))?;
-        if file.version != 1 {
-            return Err(format!(
-                "invalid {name}: unsupported version {}",
-                file.version
-            ));
-        }
-        compose(file).map_err(|error| format!("invalid {name}: {error}"))
+        file.build(name)
     }
 
     pub fn analyzers(&self) -> &[Analyzer] {

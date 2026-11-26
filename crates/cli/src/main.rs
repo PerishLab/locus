@@ -1,4 +1,5 @@
 mod analysis;
+use analysis::config;
 use input::delivery;
 mod input;
 use origin::metric;
@@ -10,13 +11,12 @@ use locus_derivation::locus::delivery::transport;
 mod tree;
 
 use clap::{Parser, Subcommand};
-use locus_derivation::inspect::{Config, Inspection};
+use locus_derivation::inspect::Inspection;
 use locus_derivation::query::{Query, Selector};
 use locus_derivation::span::{Record, Span};
 use origin::Origin;
-use std::fs;
 use std::io::{self, Write};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 #[derive(Parser)]
@@ -162,7 +162,7 @@ fn execute(command: Command) -> ExitCode {
 
 #[locus::trace(with = plumb::observation::view())]
 fn inspect(root: PathBuf, origin: &Origin) -> ExitCode {
-    let config = match read(&root) {
+    let config = match config::read(&root) {
         Ok(config) => config,
         Err(error) => {
             eprintln!("locus: {error}");
@@ -274,16 +274,4 @@ fn span(origin: &Origin) -> ExitCode {
         }
     }
     ExitCode::SUCCESS
-}
-
-fn read(root: &Path) -> Result<Config, String> {
-    if !root.is_dir() {
-        return Err(format!("cannot read {}: not a directory", root.display()));
-    }
-    let path = root.join("locus.toml");
-    match fs::read_to_string(&path) {
-        Ok(content) => Config::parse(&path.display().to_string(), &content),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(Config::default()),
-        Err(error) => Err(format!("cannot read {}: {error}", path.display())),
-    }
 }

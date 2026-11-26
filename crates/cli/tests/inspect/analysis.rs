@@ -186,3 +186,49 @@ fn analyzers() {
     assert!(output.stdout.is_empty());
     assert!(String::from_utf8_lossy(&output.stderr).contains("64 effective analyzers"));
 }
+
+#[test]
+fn manifest() {
+    let root = Root::new(None);
+    let config = r#"
+[identity]
+ns = "demo"
+
+[locus]
+version = 1
+disable = ["span.prefix"]
+
+[[locus.analyzer]]
+id = "trace.size"
+mapping = { kind = "representation-bytes", group = "locus.trace" }
+threshold = { above = 100000 }
+"#;
+    std::fs::write(root.path().join("plumb.toml"), config).unwrap();
+    let body = format!(
+        "{}\n",
+        fixture::atom(Some("trace"), json!("x".repeat(9000)))
+    );
+    let output = analyze(&root, &body, &[]);
+    assert_eq!(output.status.code(), Some(0));
+    let values = records(&output);
+    let summary = values.last().unwrap();
+    assert_eq!(summary["schema"], "locus.analyze/v1");
+    assert_eq!(summary["config"]["defaults"]["trace.size"], "overridden");
+    assert_eq!(summary["config"]["defaults"]["span.prefix"], "disabled");
+}
+
+#[test]
+fn conflict() {
+    let root = Root::new(Some("version = 1\n"));
+    std::fs::write(root.path().join("plumb.toml"), "[locus]\nversion = 1\n").unwrap();
+    let output = stub::locus()
+        .arg("analyze")
+        .arg(root.path())
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("plumb.toml [locus]"));
+    assert!(stderr.contains("locus.toml"));
+}

@@ -47,17 +47,20 @@ tuple preserves coverage, not an assertion that the underlying commands match.
 
 ## Inspect one bounded slice
 
-Create a consumer-owned directory containing this `locus.toml`:
+Create a consumer-owned directory containing a `plumb.toml` with this `[locus]`
+section (a legacy standalone `locus.toml` with the same fields remains supported
+when `plumb.toml` has no `[locus]` section; keeping both refuses):
 
 ```toml
+[locus]
 version = 1
 
-[[analyzer]]
+[[locus.analyzer]]
 id = "codex.command.prefix"
 mapping = { kind = "dominant-content-prefix-percent", group = "codex.turn" }
 threshold = { above = 80 }
 
-[[analyzer]]
+[[locus.analyzer]]
 id = "codex.command.size"
 mapping = { kind = "representation-bytes", group = "codex.turn" }
 threshold = { above = 8192 }

@@ -1,4 +1,5 @@
 mod capture;
+pub(crate) mod config;
 mod derive;
 
 use crate::origin::Origin;
@@ -35,7 +36,7 @@ pub fn execute(root: &Path, origin: &Origin, limits: Limits) -> ExitCode {
 
 #[locus::trace(with = plumb::observation::view())]
 fn run(root: &Path, origin: &Origin, limits: &Limits) -> Result<bool, String> {
-    let config = crate::read(root)?;
+    let config = config::read(root)?;
     if config.analyzers().len() > 64 {
         return Err("analysis allows at most 64 effective analyzers".into());
     }

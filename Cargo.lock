@@ -1509,6 +1509,7 @@ dependencies = [
  "locus-api",
  "locus-derivation",
  "plumb",
+ "radicula-config",
  "rusqlite",
  "serde",
  "serde_json",
@@ -1961,9 +1962,9 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "radicula-config"
-version = "0.19.1"
+version = "0.21.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "671bfa1bd952ded32439841b64b1700b41421aa7f54f8560b45233d7c926aa51"
+checksum = "3131fea5deb2dd44eb69e0e3b8ecf00cffc75046a15b74c806a39c6c16edd76a"
 dependencies = [
  "radicula-config-macros",
  "serde",
@@ -1972,9 +1973,9 @@ dependencies = [
 
 [[package]]
 name = "radicula-config-macros"
-version = "0.19.1"
+version = "0.21.0"
 source = "sparse+https://cargo.perish.uk/"
-checksum = "992387b0ef3488f38ae7c1189f6b6555a53cb1b810b1b50222803531cccf585a"
+checksum = "3d89d6877fffa9069bc5c185daa0fa4535d76a82228a7ccf367d1633b9c333d2"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
