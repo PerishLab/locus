@@ -2,12 +2,14 @@ mod link;
 pub mod metric;
 mod reach;
 mod report;
+pub(crate) mod seen;
 pub mod span;
 pub use report::{Orphan, Tangle};
 
 pub use link::Links;
 
 use locus::{Atom, Edge, Role};
+use seen::Seen;
 use std::collections::BTreeMap;
 
 pub const SCHEMA: &str = "locus.span/v1";
@@ -31,6 +33,7 @@ pub struct Held {
 #[derive(Default)]
 pub struct Ledger {
     group: Option<Role>,
+    seen: Seen,
     open: BTreeMap<String, Frame>,
     traces: BTreeMap<String, Vec<Interval>>,
     claims: BTreeMap<String, link::Claim>,
@@ -57,6 +60,9 @@ impl Ledger {
     }
 
     pub fn observe(&mut self, atom: &Atom) -> Result<(), String> {
+        if !self.seen.admit(atom)? {
+            return Ok(());
+        }
         link::claim(&mut self.claims, atom);
         let Some(frame) = self.frame(atom) else {
             return Ok(());

@@ -1,3 +1,4 @@
+use crate::derive::seen::Seen;
 use crate::inspect::Finding;
 use locus::{Atom, Edge, Source};
 use serde::Serialize;
@@ -70,6 +71,7 @@ type Groups = BTreeMap<String, Group>;
 pub struct Evidence {
     groups: BTreeMap<String, Groups>,
     budget: Budget,
+    seen: Seen,
     records: u64,
 }
 
@@ -93,6 +95,7 @@ impl Evidence {
         Ok(Self {
             groups,
             budget,
+            seen: Seen::default(),
             records: 0,
         })
     }
@@ -102,6 +105,9 @@ impl Evidence {
             .records
             .checked_add(1)
             .ok_or("evidence count overflowed")?;
+        if !self.seen.admit(atom)? {
+            return Ok(());
+        }
         for (role, keys) in &mut self.groups {
             let Some(group) = atom.context().get(role).and_then(|key| keys.get_mut(key)) else {
                 continue;
