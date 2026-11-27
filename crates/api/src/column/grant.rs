@@ -1,7 +1,7 @@
 use super::{core, text};
 use crate::store::Producer;
 use keel::adapt::db::Sqlite;
-use keel::{Core, Op, form};
+use keel::{Core, Grant, Op, form};
 use std::path::Path;
 
 pub async fn assign(
@@ -62,10 +62,10 @@ pub async fn assign(
             }
             let existing = tx.ask(&search).await?;
             if binding.grant && existing.rows().is_empty() {
-                tx.put("@grant", &fields).await?;
+                tx.grant(Grant::new(&who, "see", "Channel", &scope)).await?;
             } else if !binding.grant {
                 for row in existing.rows() {
-                    tx.end("@grant", row.key()).await?;
+                    tx.revoke(row.key()).await?;
                 }
             }
             Ok(())
