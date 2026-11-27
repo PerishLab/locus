@@ -1,3 +1,5 @@
+{{- $image := .Values.image | default dict }}
+{{- $storage := .Values.storage | default dict }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -17,6 +19,10 @@ spec:
         checksum/config: {{ include (print $.Template.BasePath "/config.yaml") . | sha256sum }}
     spec:
       automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
@@ -25,8 +31,8 @@ spec:
         fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: api
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: "{{ $image.repository | default "ghcr.io/perishlab/locus" }}:{{ $image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ $image.pullPolicy | default "IfNotPresent" }}
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -61,4 +67,4 @@ spec:
             name: {{ .Release.Name }}-config
         - name: data
           persistentVolumeClaim:
-            claimName: {{ .Values.storage.existingClaim | default (printf "%s-data" .Release.Name) }}
+            claimName: {{ $storage.existingClaim | default (printf "%s-data" .Release.Name) }}
