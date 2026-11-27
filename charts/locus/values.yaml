@@ -1,5 +1,6 @@
 issuer: ""
 jwks: {}
+imagePullSecrets: []
 image:
   repository: ghcr.io/perishlab/locus
   tag: ""
